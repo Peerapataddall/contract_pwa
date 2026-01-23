@@ -1,0 +1,507 @@
+{% extends 'base.html' %} 
+{% set title = 'ดูโครงการ' %}
+
+{% block content %}
+
+<style>
+  /* ===== Mobile-first ===== */
+  .stickyTotals{
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    backdrop-filter: blur(10px);
+    background: rgba(17, 24, 39, .55);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .stickyTotals .grid{
+    display:grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 10px;
+  }
+  .kpi{
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    padding: 10px 12px;
+    background: rgba(255,255,255,.03);
+  }
+  .kpi .k{ font-size: 12px; opacity: .75; }
+  .kpi .v{ font-size: 18px; font-weight: 800; margin-top: 2px; }
+  .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+
+  /* ===== Voucher Toolbar (จัดระเบียบใหม่) ===== */
+  .voucherBar{
+    margin-top: 14px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(255,255,255,.03);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .voucherToolbar{
+    display: grid;
+    grid-template-columns: 1.2fr auto auto;
+    gap: 12px;
+    align-items: center;
+  }
+  .voucherLeft{
+    min-width: 260px;
+  }
+  .voucherLeft label{
+    display:block;
+    font-size:12px;
+    opacity:.85;
+    margin-bottom:6px;
+  }
+  .voucherLeft select.input{
+    width: 100%;
+  }
+  .voucherHelp{
+    margin-top:6px;
+    font-size:12px;
+    opacity:.75;
+    line-height: 1.35;
+  }
+
+  .countChip{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.04);
+    white-space: nowrap;
+  }
+  .countChip .k{ font-size:12px; opacity:.75; }
+  .countChip .v{
+    font-size: 18px;
+    font-weight: 900;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  .voucherActions{
+    display:flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* responsive */
+  @media (max-width: 980px){
+    .voucherToolbar{
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+    .voucherActions{
+      justify-content: flex-start;
+    }
+    .countChip{
+      width: fit-content;
+    }
+  }
+
+  .mutedSmall{
+    font-size: 12px;
+    opacity: .75;
+  }
+  .miniCard{
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 14px;
+    background: rgba(255,255,255,.03);
+  }
+  .miniCard .k{ font-size: 12px; opacity: .7; }
+  .miniCard .v{ font-size: 22px; font-weight: 900; margin-top: 2px; }
+
+  .table-wrap{ overflow:auto; border-radius: 14px; border:1px solid rgba(255,255,255,.08); }
+  table.table{ width:100%; border-collapse: collapse; }
+  table.table th, table.table td{
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    white-space: nowrap;
+  }
+  table.table thead th{
+    font-size: 12px;
+    opacity: .8;
+    background: rgba(255,255,255,.03);
+  }
+  .right{ text-align:right; }
+  .col-check{ width: 74px; }
+  .only-mobile{ display:block; }
+  .only-desktop{ display:none; }
+  @media (min-width: 900px){
+    .only-mobile{ display:none; }
+    .only-desktop{ display:block; }
+  }
+</style>
+
+<div class="card">
+  <div style="display:flex; gap:10px; justify-content:space-between; flex-wrap:wrap; align-items:flex-start;">
+    <div>
+      <div class="section-title">{{ project.code }} — {{ project.name }}</div>
+      <div class="muted">สถานะ: <b>{{ project.status or "—" }}</b></div>
+      {% if project.customer_name %}<div class="muted">ลูกค้า: {{ project.customer_name }}</div>{% endif %}
+      {% if project.location %}<div class="muted">สถานที่: {{ project.location }}</div>{% endif %}
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="btn" href="{{ url_for('pages.project_list') }}">← กลับ</a>
+      <a class="btn" href="{{ url_for('pages.project_edit', pid=project.id) }}">แก้ไข</a>
+      <a class="btn" href="{{ url_for('pages.project_export_xlsx', pid=project.id) }}">Export Excel</a>
+    </div>
+  </div>
+
+  <div class="mt-12 stickyTotals">
+    <div class="grid">
+      <div class="kpi">
+        <div class="k">ค่าวัสดุ</div>
+        <div class="v mono">{{ "%.2f"|format(materials_total or 0) }}</div>
+      </div>
+      <div class="kpi">
+        <div class="k">ผู้รับเหมาช่วง</div>
+        <div class="v mono">{{ "%.2f"|format(subs_total or 0) }}</div>
+      </div>
+      <div class="kpi">
+        <div class="k">ค่าใช้จ่ายอื่น</div>
+        <div class="v mono">{{ "%.2f"|format(expenses_total or 0) }}</div>
+      </div>
+      <div class="kpi">
+        <div class="k">รวมทั้งหมด</div>
+        <div class="v mono">{{ "%.2f"|format(grand_total or 0) }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if project.description %}
+  <div class="mt-12">
+    <div class="label">รายละเอียดโครงการ</div>
+    <div>{{ project.description }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Voucher Print Bar (จัดระเบียบแบบ Toolbar) -->
+<form id="voucherForm" class="voucherBar" method="POST" action="{{ url_for('pages.vouchers_print', pid=project.id) }}" target="_blank">
+
+  <div class="voucherToolbar">
+    <div class="voucherLeft">
+      <label>เลือกประเภทเอกสารที่จะพิมพ์</label>
+      <select class="input" name="doc_type" id="doc_type">
+        <option value="PV">ใบสำคัญจ่าย (PAYMENT VOUCHER)</option>
+        <option value="RR">ใบรับรองแทนใบเสร็จรับเงิน</option>
+        <!-- ✅ FIX: ต้องมี option นี้ (ซ่อน) ไม่งั้น submitWHT() ส่งค่า PV_WHT ไม่ติด -->
+        <option value="PV_WHT" style="display:none;">ใบสำคัญจ่าย (หัก ณ ที่จ่าย)</option>
+      </select>
+
+      <div class="voucherHelp">
+        ติ๊กเลือกจากรายการด้านล่าง (วัสดุ/ผู้รับเหมา/ค่าใช้จ่ายอื่น) แล้วกดพิมพ์<br>
+        <b>หมายเหตุ:</b> ปุ่ม “ใบสำคัญจ่าย (หัก ณ ที่จ่าย)” จะพิมพ์เฉพาะ “ผู้รับเหมาช่วง” ที่เลือกเท่านั้น
+      </div>
+    </div>
+
+    <div class="countChip">
+      <span class="k">รายการที่เลือก</span>
+      <span class="v" id="selectedCount">0</span>
+    </div>
+
+    <div class="voucherActions">
+      <button class="btn" type="button" onclick="VoucherUI.selectAll()">เลือกทั้งหมด</button>
+      <button class="btn" type="button" onclick="VoucherUI.clearAll()">ล้างที่เลือก</button>
+
+      <!-- ✅ NEW: PV_WHT Button -->
+      <button class="btn" type="button" onclick="return VoucherUI.submitWHT()">🧾 ใบสำคัญจ่าย (หัก ณ ที่จ่าย)</button>
+
+      <button class="btn btn-primary" type="submit" onclick="return VoucherUI.beforeSubmit()">🖨️ พิมพ์เอกสารที่เลือก</button>
+    </div>
+  </div>
+
+  <!-- hidden inputs will be injected here -->
+  <div id="voucherHidden"></div>
+</form>
+
+<!-- Materials -->
+<div class="card mt-12">
+  <div class="section-head">
+    <div>
+      <div class="section-title">รายการวัสดุ</div>
+      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
+    </div>
+  </div>
+
+  <!-- Desktop table -->
+  <div class="only-desktop">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-check">เลือก</th>
+            <th>ยี่ห้อ</th>
+            <th>รหัส</th>
+            <th>ชื่อ</th>
+            <th class="right">ราคา/หน่วย</th>
+            <th class="right">จำนวน</th>
+            <th class="right">รวม</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in (project.materials or []) %}
+          {% set amount = (m.unit_price or 0) * (m.qty or 0) %}
+          <tr>
+            <td class="center">
+              <input class="vchk" type="checkbox" data-id="M:{{ m.id }}">
+              <span class="mutedSmall">เลือก</span>
+            </td>
+            <td>{{ m.brand or "" }}</td>
+            <td class="mono">{{ m.item_code or "" }}</td>
+            <td>{{ m.item_name or "" }}</td>
+            <td class="right mono">{{ "%.2f"|format(m.unit_price or 0) }}</td>
+            <td class="right mono">{{ "%.2f"|format(m.qty or 0) }}</td>
+            <td class="right mono">{{ "%.2f"|format(amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mobile cards -->
+  <div class="only-mobile">
+    {% for m in (project.materials or []) %}
+    {% set amount = (m.unit_price or 0) * (m.qty or 0) %}
+    <div class="miniCard" style="padding:12px; margin-top:10px;">
+      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
+        <div>
+          <div><b>{{ m.item_name or "" }}</b></div>
+          <div class="mutedSmall">ยี่ห้อ: {{ m.brand or "" }}</div>
+          <div class="mutedSmall mono">รหัส: {{ m.item_code or "" }}</div>
+        </div>
+        <div>
+          <input class="vchk" type="checkbox" data-id="M:{{ m.id }}">
+          <span class="mutedSmall">เลือก</span>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+        <div class="mutedSmall">ราคา/หน่วย<br><b class="mono">{{ "%.2f"|format(m.unit_price or 0) }}</b></div>
+        <div class="mutedSmall">จำนวน<br><b class="mono">{{ "%.2f"|format(m.qty or 0) }}</b></div>
+        <div class="mutedSmall">รวม<br><b class="mono">{{ "%.2f"|format(amount) }}</b></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Subcontractors -->
+<div class="card mt-12">
+  <div class="section-head">
+    <div>
+      <div class="section-title">ผู้รับเหมาช่วง</div>
+      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
+    </div>
+  </div>
+
+  <div class="only-desktop">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-check">เลือก</th>
+            <th>ชื่อ</th>
+            <th class="right">ว่าจ้าง</th>
+            <th class="right">% หัก ณ ที่จ่าย</th>
+            <th class="right">หัก (บาท)</th>
+            <th class="right">จ่ายจริง</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in (project.subcontractors or []) %}
+          {% set net = (s.contract_amount or 0) - (s.withholding_amount or 0) %}
+          <tr>
+            <td class="center">
+              <input class="vchk" type="checkbox" data-id="S:{{ s.id }}">
+              <span class="mutedSmall">เลือก</span>
+            </td>
+            <td><b>{{ s.vendor_name or "ผู้รับเหมา" }}</b></td>
+            <td class="right mono">{{ "%.2f"|format(s.contract_amount or 0) }}</td>
+            <td class="right mono">{{ "%.2f"|format(s.withholding_rate or 0) }}</td>
+            <td class="right mono">{{ "%.2f"|format(s.withholding_amount or 0) }}</td>
+            <td class="right mono">{{ "%.2f"|format(net) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="only-mobile">
+    {% for s in (project.subcontractors or []) %}
+    {% set net = (s.contract_amount or 0) - (s.withholding_amount or 0) %}
+    <div class="miniCard" style="padding:12px; margin-top:10px;">
+      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
+        <div>
+          <div><b>{{ s.vendor_name or "ผู้รับเหมา" }}</b></div>
+        </div>
+        <div>
+          <input class="vchk" type="checkbox" data-id="S:{{ s.id }}">
+          <span class="mutedSmall">เลือก</span>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+        <div class="mutedSmall">ว่าจ้าง<br><b class="mono">{{ "%.2f"|format(s.contract_amount or 0) }}</b></div>
+        <div class="mutedSmall">% หัก ณ ที่จ่าย<br><b class="mono">{{ "%.2f"|format(s.withholding_rate or 0) }}</b></div>
+        <div class="mutedSmall">หัก (บาท)<br><b class="mono">{{ "%.2f"|format(s.withholding_amount or 0) }}</b></div>
+        <div class="mutedSmall">จ่ายจริง<br><b class="mono">{{ "%.2f"|format(net) }}</b></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Expenses -->
+<div class="card mt-12">
+  <div class="section-head">
+    <div>
+      <div class="section-title">ค่าใช้จ่ายอื่น</div>
+      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
+    </div>
+  </div>
+
+  <div class="only-desktop">
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-check">เลือก</th>
+            <th>หมวด</th>
+            <th>ชื่อ</th>
+            <th class="right">จำนวนเงิน</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in (project.expenses or []) %}
+          <tr>
+            <td class="center">
+              <input class="vchk" type="checkbox" data-id="E:{{ e.id }}">
+              <span class="mutedSmall">เลือก</span>
+            </td>
+            <td>{{ e.category or "อื่นๆ" }}</td>
+            <td>{{ e.title or "" }}</td>
+            <td class="right mono">{{ "%.2f"|format(e.amount or 0) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="only-mobile">
+    {% for e in (project.expenses or []) %}
+    <div class="miniCard" style="padding:12px; margin-top:10px;">
+      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
+        <div>
+          <div><b>{{ e.title or "" }}</b></div>
+          <div class="mutedSmall">หมวด: {{ e.category or "อื่นๆ" }}</div>
+        </div>
+        <div>
+          <input class="vchk" type="checkbox" data-id="E:{{ e.id }}">
+          <span class="mutedSmall">เลือก</span>
+        </div>
+      </div>
+      <div class="mutedSmall" style="margin-top:10px;">
+        จำนวนเงิน<br><b class="mono">{{ "%.2f"|format(e.amount or 0) }}</b>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="mt-12"></div>
+
+<script>
+  const VoucherUI = {
+    syncHidden(filterPrefix=null){
+      const box = document.getElementById('voucherHidden');
+      box.innerHTML = '';
+
+      let checked = Array.from(document.querySelectorAll('.vchk:checked'));
+      if(filterPrefix){
+        checked = checked.filter(x => (x.getAttribute('data-id') || '').startsWith(filterPrefix));
+      }
+
+      for(const c of checked){
+        const id = c.getAttribute('data-id');
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'ids';
+        inp.value = id;
+        box.appendChild(inp);
+      }
+
+      // นับทั้งหมดที่ติ๊กจริง (ไม่ filter) เพื่อแสดง count เดิม
+      const allChecked = Array.from(document.querySelectorAll('.vchk:checked')).length;
+      document.getElementById('selectedCount').textContent = String(allChecked);
+    },
+
+    selectAll(){
+      document.querySelectorAll('.vchk').forEach(c => c.checked = true);
+      this.syncHidden();
+    },
+
+    clearAll(){
+      document.querySelectorAll('.vchk').forEach(c => c.checked = false);
+      this.syncHidden();
+    },
+
+    beforeSubmit(){
+      this.syncHidden();
+      const n = document.querySelectorAll('.vchk:checked').length;
+      if(n <= 0){
+        alert('กรุณาติ๊กเลือกรายการอย่างน้อย 1 รายการก่อนพิมพ์');
+        return false;
+      }
+      return true;
+    },
+
+    // ✅ NEW: Submit PV_WHT (ส่งเฉพาะ S:...)
+    submitWHT(){
+      // ส่งเฉพาะ S:... เข้า hidden
+      this.syncHidden('S:');
+
+      const subChecked = Array.from(document.querySelectorAll('.vchk:checked'))
+        .filter(x => (x.getAttribute('data-id') || '').startsWith('S:'));
+
+      if(subChecked.length <= 0){
+        alert('กรุณาติ๊กเลือกผู้รับเหมาช่วงอย่างน้อย 1 รายการก่อนออกใบสำคัญจ่าย (หัก ณ ที่จ่าย)');
+        return false;
+      }
+
+      const sel = document.getElementById('doc_type');
+      const prev = sel.value;
+
+      // เปลี่ยน doc_type เป็น PV_WHT ชั่วคราว แล้ว submit
+      sel.value = 'PV_WHT';
+      document.getElementById('voucherForm').submit();
+      sel.value = prev;
+
+      return false;
+    }
+  };
+
+  // keep desktop/mobile checkboxes in sync by data-id
+  function bindSync(){
+    const all = Array.from(document.querySelectorAll('.vchk'));
+    all.forEach((el) => {
+      el.addEventListener('change', () => {
+        const id = el.getAttribute('data-id');
+        const state = el.checked;
+        document.querySelectorAll(`.vchk[data-id="${id}"]`).forEach(x => { x.checked = state; });
+        VoucherUI.syncHidden();
+      });
+    });
+    VoucherUI.syncHidden();
+  }
+
+  document.addEventListener('DOMContentLoaded', bindSync);
+</script>
+
+{% endblock %}

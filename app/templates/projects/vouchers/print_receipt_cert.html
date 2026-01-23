@@ -1,0 +1,378 @@
+{# app/templates/projects/vouchers/print_receipt_cert.html #}
+{# NOTE:
+  ไฟล์นี้เป็น partial template (ใช้ include) ห้าม extends base.html
+#}
+
+<style>
+  /* =========================================================
+     RECEIPT REPLACEMENT CERTIFICATE (ครึ่ง A4 แนวตั้ง)
+     -> ใช้ A5 landscape = ครึ่ง A4 portrait
+     ========================================================= */
+
+  .rc-form{
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border: 2px solid #000;
+    background: #fff;
+    color:#000;
+    font-family: Tahoma, "Sarabun", Arial, sans-serif;
+  }
+
+  /* Header */
+  .rc-header{
+    display: grid;
+    grid-template-columns: 52mm 1fr 55mm; /* โลโก้ | หัวเรื่อง | กล่อง No/Date */
+    gap: 6mm;
+    align-items: start;
+    padding: 6mm 6mm 4mm 6mm;
+    border-bottom: 2px solid #000;
+  }
+
+  .rc-logo img{
+    width: 48mm;
+    height: 18mm;
+    object-fit: contain;
+    display:block;
+  }
+
+  .rc-title{
+    text-align: center;
+    line-height: 1.15;
+    padding-top: 1mm;
+  }
+  .rc-title .company{ font-size: 14px; font-weight: 800; color:#000; }
+  .rc-title .docname{ font-size: 12px; font-weight: 800; margin-top: 2mm; color:#000; }
+  .rc-title .en{
+    font-size: 11px;
+    font-weight: 700;
+    color:#000;
+    margin-top: 1mm;
+    text-decoration: underline;
+  }
+
+  .rc-docbox{
+    border: 2px solid #000;
+    font-size: 10px;
+    color:#000;
+  }
+  .rc-docbox .row{
+    display:grid;
+    grid-template-columns: 18mm 1fr;
+    border-bottom: 1px solid #000;
+  }
+  .rc-docbox .row:last-child{ border-bottom:0; }
+  .rc-docbox .cell{
+    padding: 2.2mm 2.5mm;
+    border-right: 1px solid #000;
+    color:#000;
+  }
+  .rc-docbox .cell:last-child{ border-right:0; }
+
+  /* Body */
+  .rc-body{ padding: 4mm 6mm 0 6mm; color:#000; font-size: 10.5px; }
+
+  .line{
+    display:inline-block;
+    border-bottom: 1px solid #000;
+    height: 12px;
+    vertical-align: bottom;
+    min-width: 40mm;
+  }
+  .line.lg{ min-width: 90mm; }
+  .line.md{ min-width: 55mm; }
+  .line.sm{ min-width: 28mm; }
+
+  .rc-paragraph{
+    margin: 2mm 0 2mm 0;
+    line-height: 1.45;
+    color:#000;
+  }
+
+  .rc-meta{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10mm;
+    margin-top: 2mm;
+    margin-bottom: 2mm;
+  }
+
+  /* Table */
+  .rc-table-wrap{
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+    margin-top: 3mm;
+  }
+  table.rc-table{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    color:#000;
+  }
+  .rc-table th, .rc-table td{
+    border: 1px solid #000;
+    padding: 2.2mm 2mm;
+    vertical-align: top;
+    color:#000;
+  }
+  .rc-table thead th{
+    font-weight: 800;
+    text-align: center;
+    color:#000;
+  }
+  .right{ text-align:right; }
+  .center{ text-align:center; }
+
+  .rc-total-row td{
+    border-top: 2px solid #000;
+    font-weight: 800;
+    color:#000;
+  }
+
+  .rc-foot-note{
+    font-size: 9.5px;
+    margin: 2mm 0 0 0;
+    color:#000;
+  }
+
+  /* Signature */
+  .rc-sign{
+    padding: 3mm 6mm 5mm 6mm;
+    color:#000;
+  }
+
+  /* 3 ช่องลายเซ็น (ผู้เบิกเงิน/ผู้รับเงิน/ผู้อนุมัติ) */
+  .sign3{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10mm;
+    align-items:end;
+    margin-top: 2mm;
+    font-size: 10.5px;
+    color:#000;
+  }
+
+  .sig-block .label{
+    font-weight: 800;
+    margin: 0 0 1mm 0; /* ให้ชิดรูป */
+    color:#000;
+  }
+
+  .sig-line-wrap{
+    position: relative;
+    height: 16mm;     /* พอดี “ลายเซ็นจริงบนกระดาษ” */
+  }
+
+  .sig-line{
+    position:absolute;
+    left:0; right:0;
+    bottom: 2mm;
+    border-bottom: 1px solid #000;
+    height: 0;
+  }
+
+  /* รูปวางทับเส้น: ไม่ใช้ค่า negative, ไม่ให้หลุดกรอบพิมพ์ */
+  .sig-img{
+    position:absolute;
+    left: 0;
+    right: 0;
+    bottom: 0mm;              /* ทับเส้นพอดี */
+    height: 12mm;             /* ขนาดลายเซ็น */
+    width: 100%;
+    object-fit: contain;      /* แสดงเต็มรูป */
+    object-position: left center;
+    display:block;
+    pointer-events:none;
+  }
+
+  /* ผู้อนุมัติให้เด่นขึ้นเล็กน้อย */
+  .sig-block.approve .sig-img{
+    height: 12mm;
+    object-position: left center;
+  }
+
+  /* พิมพ์สี/รูปไม่เพี้ยน */
+  @media print{
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+
+{# ====== Fallback ตัวแปร (ให้ไม่พังแม้ส่งมาไม่ครบ) ====== #}
+{% set _doc_date = (doc_date if doc_date is defined and doc_date else (today.isoformat() if today is defined and today else "")) %}
+{% set _pcode = (project_code if project_code is defined and project_code else (project.code if project is defined else "")) %}
+{% set _pname = (project_name if project_name is defined and project_name else (project.name if project is defined else "")) %}
+{% set _rows = rows if rows is defined else [] %}
+
+{# =========================================================
+   ✅ รวมเงินแบบชัวร์ (namespace กัน set ใน loop ไม่อัปเดต)
+   - คำนวณจาก total / line_total / amount / unit*qty
+   ========================================================= #}
+{% set ns = namespace(total=0.0) %}
+
+{% if _rows and (_rows|length) %}
+  {% for rr in _rows %}
+    {% set _qty = (rr.qty if rr.qty is defined and rr.qty else (rr.quantity if rr.quantity is defined and rr.quantity else 1)) %}
+    {% set _unit = (
+      rr.unit_price if rr.unit_price is defined and rr.unit_price else
+      (rr.price if rr.price is defined and rr.price else
+        (((rr.amount or 0)|float) / ((_qty|float) if _qty else 1))
+      )
+    ) %}
+    {% set _line_total = (
+      rr.total if rr.total is defined and rr.total else
+      (rr.line_total if rr.line_total is defined and rr.line_total else
+        (rr.amount if rr.amount is defined and rr.amount else ((_unit|float) * (_qty|float)))
+      )
+    ) %}
+    {% set ns.total = ns.total + ((_line_total or 0)|float) %}
+  {% endfor %}
+{% endif %}
+
+{% set total_amount = ns.total %}
+{# ✅ ใช้ helper ที่ register จาก app/utils.py (ไม่ใช้ macro ในไฟล์นี้แล้ว) #}
+{% set total_text = thai_baht_text(total_amount) %}
+
+<div class="rc-form">
+
+  <!-- HEADER -->
+  <div class="rc-header">
+    <div class="rc-logo">
+      <img src="{{ url_for('static', filename='brand/giant_logo.png') }}" alt="GIANT LOGO">
+    </div>
+
+    <div class="rc-title">
+      <div class="company">บริษัท ไจแอ้นท์ เดคคอเรชัŕน จำกัด &nbsp; (สำนักงานใหญ่)</div>
+      <div class="docname">ใบรับรองแทนใบเสร็จรับเงิน</div>
+      <div class="en">RECEIPT REPLACEMENT CERTIFICATE</div>
+    </div>
+
+    <div class="rc-docbox">
+      <div class="row">
+        <div class="cell"><b>เลขที่</b> &nbsp;No.</div>
+        <div class="cell"></div>
+      </div>
+      <div class="row">
+        <div class="cell"><b>วันที่</b> &nbsp;Date</div>
+        <div class="cell">{{ _doc_date }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="rc-body">
+
+    <div class="rc-meta">
+      <div>
+        ข้าพเจ้า <b>นางสาวเดือนเพ็ญ บุญป้อง</b> <span class="line sm"></span>
+        &nbsp;&nbsp;พนักงานฝ่าย <span class="line md"></span>
+      </div>
+
+      <div style="text-align:right;">
+        โครงการ <b>{{ _pcode }}</b>{% if _pname %} — {{ _pname }}{% endif %}
+      </div>
+    </div>
+
+    <div class="rc-paragraph">
+      ขอรับรองว่าได้จ่ายค่าใช้จ่ายต่างๆดังต่อไปนี้ ไม่สามารถเรียกเก็บใบเสร็จรับเงินจากผู้รับเงินได้
+      และข้าพเจ้าได้จ่ายค่าใช้จ่ายดังกล่าว อันเกี่ยวข้องกับกิจการของ บริษัท ไจแอ้นท์ เดคคอเรชั่น จำกัด (สนญ) โดยแท้จริง
+    </div>
+
+    <!-- TABLE -->
+    <div class="rc-table-wrap">
+      <table class="rc-table">
+        <thead>
+          <tr>
+            <th style="width:8%;">ลำดับ</th>
+            <th>ชื่อ</th>
+            <th style="width:18%;">ราคา/หน่วย</th>
+            <th style="width:12%;">จำนวน</th>
+            <th style="width:18%;">รวม</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% if _rows and _rows|length %}
+            {% for rr in _rows %}
+              {% set _qty = (rr.qty if rr.qty is defined and rr.qty else (rr.quantity if rr.quantity is defined and rr.quantity else 1)) %}
+              {% set _unit = (
+                rr.unit_price if rr.unit_price is defined and rr.unit_price else
+                (rr.price if rr.price is defined and rr.price else
+                  (((rr.amount or 0)|float) / ((_qty|float) if _qty else 1))
+                )
+              ) %}
+              {% set _line_total = (
+                rr.total if rr.total is defined and rr.total else
+                (rr.line_total if rr.line_total is defined and rr.line_total else
+                  (rr.amount if rr.amount is defined and rr.amount else ((_unit|float) * (_qty|float)))
+                )
+              ) %}
+              <tr>
+                <td class="center">{{ loop.index }}</td>
+                <td>
+                  <b>{{ rr.title }}</b>
+                  {% if rr.particular %}<div style="font-size:9px;">{{ rr.particular }}</div>{% endif %}
+                </td>
+                <td class="right">{{ "%.2f"|format((_unit or 0)|float) }}</td>
+                <td class="center">{{ _qty }}</td>
+                <td class="right">{{ "%.2f"|format((_line_total or 0)|float) }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td class="center">1</td>
+              <td>-</td>
+              <td class="right">0.00</td>
+              <td class="center">1</td>
+              <td class="right">0.00</td>
+            </tr>
+          {% endif %}
+        </tbody>
+
+        <tfoot>
+          <tr class="rc-total-row">
+            <td colspan="4" class="right">
+              {{ total_text }} &nbsp;&nbsp;รวมเงิน
+            </td>
+            <td class="right">{{ "%.2f"|format((total_amount or 0)|float) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="rc-foot-note">
+      จำนวนเงินตัวอักษร (บาท) <span class="line lg">{{ total_text }}</span>
+    </div>
+  </div>
+
+  <!-- SIGNATURE -->
+  <div class="rc-sign">
+    <div class="sign3">
+
+      <div class="sig-block">
+        <div class="label">ผู้เบิกเงิน (พนักงาน)</div>
+        <div class="sig-line-wrap">
+          <div class="sig-line"></div>
+          {# ✅ ไม่มีรูปเซ็น: ให้เซ็นมือเอง #}
+        </div>
+      </div>
+
+      <div class="sig-block">
+        <div class="label">ผู้รับเงิน (แทน)</div>
+        <div class="sig-line-wrap">
+          <div class="sig-line"></div>
+          <img class="sig-img" src="{{ url_for('static', filename='brand/sign_prepared.png') }}" alt="Receiver">
+        </div>
+      </div>
+
+      <div class="sig-block approve">
+        <div class="label">ผู้อนุมัติ</div>
+        <div class="sig-line-wrap">
+          <div class="sig-line"></div>
+          <img class="sig-img" src="{{ url_for('static', filename='brand/sign_approved.png') }}" alt="Approved">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

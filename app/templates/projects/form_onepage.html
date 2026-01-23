@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+{% set title = 'เพิ่ม/แก้ไขโครงการ' %}
+
+{% block content %}
+
+<style>
+  /* ===== Mobile-first tweaks (เฉพาะหน้านี้) ===== */
+  .pagehead{
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding-top: 10px;
+    margin-top: -10px;
+  }
+  .pagehead .actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+  .btn{ min-height:44px; }            /* ปุ่มแตะง่าย */
+  .input{ min-height:44px; }          /* ช่องแตะง่าย */
+  .btn.btn-small{ min-height:40px; padding:8px 12px; }
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border-radius: 14px;
+  }
+  .table{ min-width: 980px; }         /* กันตารางบีบแคบเกิน */
+  .section-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .section-head .section-title{ font-size: 18px; }
+  .totals .totals__row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+  }
+  /* ทำให้กริดบนจอเล็กเป็นคอลัมน์เดียว */
+  @media (max-width: 860px){
+    .grid.grid-2{ grid-template-columns: 1fr !important; }
+    .grid.grid-3{ grid-template-columns: 1fr !important; }
+    .right{ text-align:left !important; }
+    .table{ min-width: 860px; }
+    .pagehead h1{ font-size: 22px; }
+  }
+</style>
+
+<div class="pagehead">
+  <div>
+    <h1>{{ 'แก้ไขโครงการ' if project else 'เพิ่มโครงการ' }}</h1>
+    <div class="muted">กรอกข้อมูลทั้งหมดในหน้าเดียว แล้วกดบันทึก</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('pages.project_list') }}">← กลับ</a>
+    {% if project %}
+      <a class="btn" href="{{ url_for('pages.project_view', pid=project.id) }}">👁️ ดู</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="grid grid-2">
+    <div>
+      <label class="label">รหัสโครงการ *</label>
+      <input class="input" id="code" placeholder="เช่น PJ-2026-001" value="{{ project.code if project else '' }}">
+      <div class="hint">ต้องไม่ซ้ำ (ใช้สำหรับค้นหา)</div>
+    </div>
+    <div>
+      <label class="label">สถานะ</label>
+      <select class="input" id="status">
+        <option value="IN_PROGRESS" {{ 'selected' if project and project.status=='IN_PROGRESS' else '' }}>กำลังทำงาน</option>
+        <option value="DEFECT" {{ 'selected' if project and project.status=='DEFECT' else '' }}>กำลังเก็บ Defect</option>
+        <option value="DONE" {{ 'selected' if project and project.status=='DONE' else '' }}>งานจบ</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="mt-12">
+    <label class="label">ชื่อโครงการ *</label>
+    <input class="input" id="name" placeholder="เช่น งานบิ้วอินบ้านคุณ A" value="{{ project.name if project else '' }}">
+  </div>
+
+  <div class="grid grid-2 mt-12">
+    <div>
+      <label class="label">ชื่อลูกค้า</label>
+      <input class="input" id="customer_name" value="{{ project.customer_name if project else '' }}" placeholder="(ไม่บังคับ)">
+    </div>
+    <div>
+      <label class="label">สถานที่</label>
+      <input class="input" id="location" value="{{ project.location if project else '' }}" placeholder="(ไม่บังคับ)">
+    </div>
+  </div>
+
+  <div class="grid grid-3 mt-12">
+    <div>
+      <label class="label">วันเริ่ม</label>
+      <input class="input" id="start_date" type="date" value="{{ project.start_date if project and project.start_date else '' }}">
+    </div>
+    <div>
+      <label class="label">วันสิ้นสุด</label>
+      <input class="input" id="end_date" type="date" value="{{ project.end_date if project and project.end_date else '' }}">
+    </div>
+    <div>
+      <label class="label">เข้าทำงาน (วัน)</label>
+      <input class="input" id="work_days" type="number" min="0" step="1" value="{{ project.work_days if project else 0 }}">
+    </div>
+  </div>
+
+  <div class="mt-12">
+    <label class="label">รายละเอียดโครงการ</label>
+    <textarea class="input" id="description" rows="3" placeholder="สรุปว่าทำอะไรบ้าง...">{{ project.description if project and project.description else '' }}</textarea>
+  </div>
+</div>
+
+<!-- ✅ ปรับเป็นเรียงแนวตั้งเต็มความกว้าง -->
+<div class="mt-12">
+
+  <!-- วัสดุ -->
+  <div class="card">
+    <div class="section-head">
+      <div>
+        <div class="section-title">วัสดุ / ของที่ใช้ในโครงการ</div>
+        <div class="muted">ใส่ยี่ห้อ / รหัส / ราคา / จำนวน (เพิ่มแถวได้)</div>
+      </div>
+      <button class="btn btn-small" type="button" onclick="Materials.addRow()">➕ เพิ่มแถว</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="materials_table">
+        <thead>
+          <tr>
+            <th>ยี่ห้อ</th>
+            <th>รหัส</th>
+            <th>ชื่อ</th>
+            <th class="right">ราคา/หน่วย</th>
+            <th class="right">จำนวน</th>
+            <th class="right">รวม</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="totals">
+      <div class="totals__row">
+        <div>รวมค่าวัสดุ</div>
+        <div class="mono" id="materials_total">0.00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ผู้รับเหมาช่วง -->
+  <div class="card mt-12">
+    <div class="section-head">
+      <div>
+        <div class="section-title">ผู้รับเหมาช่วง</div>
+        <div class="muted">ว่าจ้าง / หัก ณ ที่จ่าย (คำนวณจ่ายจริง)</div>
+      </div>
+      <button class="btn btn-small" type="button" onclick="Subs.addRow()">➕ เพิ่มแถว</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="subs_table">
+        <thead>
+          <tr>
+            <th>ชื่อ</th>
+            <th class="right">ว่าจ้าง</th>
+            <th class="right">% หัก ณ ที่จ่าย</th>
+            <th class="right">หัก (บาท)</th>
+            <th class="right">จ่ายจริง</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="totals">
+      <div class="totals__row">
+        <div>รวมจ่ายผู้รับเหมาช่วง</div>
+        <div class="mono" id="subs_total">0.00</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ค่าใช้จ่ายอื่น -->
+  <div class="card mt-12">
+    <div class="section-head">
+      <div>
+        <div class="section-title">ค่าใช้จ่ายอื่น</div>
+        <div class="muted">เช่น น้ำมัน, ค่าแรงรายวัน, ขนส่ง ฯลฯ (แยกหมวดได้)</div>
+      </div>
+      <button class="btn btn-small" type="button" onclick="Expenses.addRow()">➕ เพิ่มแถว</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="expenses_table">
+        <thead>
+          <tr>
+            <th>หมวด</th>
+            <th>รายการ</th>
+            <th class="right">จำนวนเงิน</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="totals">
+      <div class="totals__row">
+        <div>รวมค่าใช้จ่ายอื่น</div>
+        <div class="mono" id="expenses_total">0.00</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="card mt-12">
+  <div class="grid grid-3">
+    <div>
+      <div class="label">รวมทั้งหมด (ค่าวัสดุ + ผู้รับเหมาช่วง + อื่นๆ)</div>
+      <div class="mono big" id="grand_total">0.00</div>
+    </div>
+    <div class="muted">
+      <div class="label">หมายเหตุ</div>
+      <div>คุณสามารถกลับมาแก้ไขข้อมูลโครงการนี้ได้ตลอด และค้นหาได้จากรหัส/ชื่อโครงการ</div>
+    </div>
+    <div class="right">
+      <button class="btn btn-primary" type="button" onclick="ProjectForm.save()">💾 บันทึก</button>
+      {% if project %}
+        <button class="btn btn-danger" type="button" onclick="ProjectForm.remove({{ project.id }})">🗑️ ลบ</button>
+      {% endif %}
+      <div class="hint" id="save_hint"></div>
+    </div>
+  </div>
+</div>
+
+<script id="project-data" type="application/json">
+{% if project %}
+{
+  "id": {{ project.id|tojson }},
+  "code": {{ (project.code or "")|tojson }},
+  "name": {{ (project.name or "")|tojson }},
+  "description": {{ (project.description or "")|tojson }},
+  "customer_name": {{ (project.customer_name or "")|tojson }},
+  "location": {{ (project.location or "")|tojson }},
+  "start_date": {{ (project.start_date.isoformat() if project.start_date else "")|tojson }},
+  "end_date": {{ (project.end_date.isoformat() if project.end_date else "")|tojson }},
+  "work_days": {{ (project.work_days or 0)|tojson }},
+  "status": {{ (project.status or "IN_PROGRESS")|tojson }},
+  "materials": [
+    {% if project.materials %}
+      {% for m in project.materials %}
+      {
+        "brand": {{ (m.brand or "")|tojson }},
+        "item_code": {{ (m.item_code or "")|tojson }},
+        "item_name": {{ (m.item_name or "")|tojson }},
+        "unit": {{ (m.unit or "")|tojson }},
+        "unit_price": {{ ((m.unit_price or 0)|float)|tojson }},
+        "qty": {{ ((m.qty or 0)|float)|tojson }},
+        "note": {{ (m.note or "")|tojson }}
+      }{{ "," if not loop.last else "" }}
+      {% endfor %}
+    {% endif %}
+  ],
+  "subcontractors": [
+    {% if project.subcontractors %}
+      {% for s in project.subcontractors %}
+      {
+        "vendor_name": {{ (s.vendor_name or "")|tojson }},
+        "contract_amount": {{ ((s.contract_amount or 0)|float)|tojson }},
+        "withholding_rate": {{ ((s.withholding_rate or 0)|float)|tojson }},
+        "withholding_amount": {{ ((s.withholding_amount or 0)|float)|tojson }},
+        "note": {{ (s.note or "")|tojson }}
+      }{{ "," if not loop.last else "" }}
+      {% endfor %}
+    {% endif %}
+  ],
+  "expenses": [
+    {% if project.expenses %}
+      {% for e in project.expenses %}
+      {
+        "category": {{ (e.category or "")|tojson }},
+        "title": {{ (e.title or "")|tojson }},
+        "amount": {{ ((e.amount or 0)|float)|tojson }},
+        "note": {{ (e.note or "")|tojson }}
+      }{{ "," if not loop.last else "" }}
+      {% endfor %}
+    {% endif %}
+  ]
+}
+{% else %}
+{
+  "id": null,
+  "code": "",
+  "name": "",
+  "description": "",
+  "customer_name": "",
+  "location": "",
+  "start_date": "",
+  "end_date": "",
+  "work_days": 0,
+  "status": "IN_PROGRESS",
+  "materials": [],
+  "subcontractors": [],
+  "expenses": []
+}
+{% endif %}
+</script>
+
+<script>
+  window.__PROJECT__ = JSON.parse(document.getElementById('project-data').textContent);
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/project_form.js') }}"></script>
+{% endblock %}

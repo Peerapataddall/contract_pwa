@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% set title = "พิมพ์เอกสาร" %}
+
+{% block content %}
+
+{# =========================================================
+   ✅ PRINT RULES (ไม่หน้าขาว + คุมขนาดกระดาษ)
+   - ซ่อน UI ตอนพิมพ์ ด้วย visibility
+   - PV / PV_WHT: A4 แนวตั้ง (2 ใบต่อ 1 แผ่น ครึ่งบน/ครึ่งล่าง)
+   - ใบรับรองแทนใบเสร็จรับเงิน (RR): A4 แนวตั้ง (1 รายการต่อ 1 แผ่น / ฟอร์มอยู่ “ครึ่งบน”)
+   ========================================================= #}
+
+{% set _dt = (doc_type or "PV")|upper %}
+
+{% if _dt in ["PV","PV_WHT"] %}
+<style>
+  @media print {
+    @page { size: A4 portrait; margin: 0mm; }
+
+    body * { visibility: hidden !important; }
+    .print-area, .print-area * { visibility: visible !important; }
+
+    .print-area{
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Preview */
+  .print-area { margin-top: 12px; display: grid; gap: 12px; }
+  .doc-page { background:#fff; }
+
+  /* =========================================================
+     PV / PV_WHT: 1 แผ่น A4 = 2 ใบ (ครึ่งบน + ครึ่งล่าง)
+     ========================================================= */
+  .a4page{
+    width: 210mm;
+    height: 297mm;
+    box-sizing: border-box;
+    padding: 10mm;
+    background: #fff;
+
+    page-break-after: always;
+    break-after: page;
+
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 6mm;
+  }
+  .a4page:last-child{
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .half{
+    box-sizing: border-box;
+    height: 100%;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* กันใบ PV แตกครึ่งหน้า */
+  .pv-form{
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+</style>
+{% else %}
+<style>
+  @media print {
+    @page { size: A4 portrait; margin: 0mm; }
+
+    body * { visibility: hidden !important; }
+    .print-area, .print-area * { visibility: visible !important; }
+
+    .print-area{
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Preview */
+  .print-area { margin-top: 12px; display: grid; gap: 12px; }
+  .doc-page { background:#fff; }
+
+  /* =========================================================
+     ใบรับรองแทนใบเสร็จรับเงิน (RR)
+     ✅ 1 รายการต่อ 1 แผ่น A4
+     ✅ ฟอร์มอยู่ “ครึ่งบน” ของ A4 (ครึ่ง A4 แนวตั้ง)
+     ========================================================= */
+
+  .a4sheet{
+    width: 210mm;
+    height: 297mm;
+    box-sizing: border-box;
+    padding: 10mm;
+    background: #fff;
+
+    page-break-after: always;
+    break-after: page;
+  }
+  .a4sheet:last-child{
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* กล่องฟอร์มครึ่ง A4 (แนวตั้ง) */
+  .halfA4{
+    width: 100%;
+    height: 148.5mm; /* ครึ่งของ 297mm */
+    box-sizing: border-box;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* กันฟอร์มแตกหน้า */
+  .halfA4 *{
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ✅ ลบลายเซ็น “ผู้เบิกเงิน (พนักงาน)” ออก ให้เหลือเส้นเซ็นมือเอง */
+  .sig-emp img,
+  .sig-employee img,
+  .sigEmp img,
+  .sigEmployee img{
+    display: none !important;
+  }
+</style>
+{% endif %}
+
+<div class="card no-print" style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+  <div>
+    <div class="section-title">
+      พิมพ์เอกสาร:
+      {% if _dt == "PV" %}
+        ใบสำคัญจ่าย
+      {% elif _dt == "PV_WHT" %}
+        ใบสำคัญจ่าย (หัก ณ ที่จ่าย)
+      {% else %}
+        ใบรับรองแทนใบเสร็จรับเงิน
+      {% endif %}
+    </div>
+    <div class="muted">โครงการ: {{ project.code }} — {{ project.name }}</div>
+    {% if rows %}
+      <div class="muted">จำนวนรายการที่เลือก: <b>{{ rows|length }}</b></div>
+    {% endif %}
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button class="btn btn-primary" type="button" onclick="window.print()">🖨️ Print</button>
+    <a class="btn" href="{{ url_for('pages.project_view', pid=project.id) }}">← กลับ</a>
+  </div>
+</div>
+
+{% if not rows %}
+  <div class="card mt-12">
+    <div class="muted">ไม่มีรายการที่เลือกสำหรับพิมพ์</div>
+  </div>
+{% endif %}
+
+<div class="print-area">
+{% if rows %}
+
+  {# =========================================================
+     ✅ PV / PV_WHT: 2 ใบต่อ 1 แผ่น A4 (ครึ่งบน/ครึ่งล่าง)
+     ========================================================= #}
+  {% if _dt in ["PV","PV_WHT"] %}
+
+    {% for r in rows %}
+      {% if loop.index0 % 2 == 0 %}
+        <div class="a4page">
+      {% endif %}
+
+      <div class="half">
+        {# ส่ง “รายการเดียว” เข้า PV #}
+        {% set _rows_one = [r] %}
+        {% set rows = _rows_one %}
+
+        {# เผื่อไฟล์ print_pv.html ใช้ตัวแปรมาตรฐาน #}
+        {% set doc_type = _dt %}
+        {% set doc_date = (today.isoformat() if today else "") %}
+        {% set project_code = project.code %}
+        {% set project_name = project.name %}
+
+        {# ✅ total_amount ต้องเป็น "ยอดรวมของใบนั้น"
+           - PV: ใช้ r.amount
+           - PV_WHT: ใช้ "จ่ายจริง" (contract - withholding)
+        #}
+        {% if _dt == "PV_WHT" %}
+          {% set contract_amount = (r.contract_amount if r.contract_amount is defined else (r.gross_amount if r.gross_amount is defined else (r.amount or 0))) %}
+          {% set withholding_amount = (r.withholding_amount if r.withholding_amount is defined else 0) %}
+          {% set total_amount = ((contract_amount|float) - (withholding_amount|float)) %}
+        {% else %}
+          {% set total_amount = (r.amount or 0) %}
+        {% endif %}
+
+        {% include "projects/vouchers/print_pv.html" %}
+      </div>
+
+      {% if loop.index0 % 2 == 1 or loop.last %}
+        </div>
+      {% endif %}
+    {% endfor %}
+
+  {% else %}
+
+  {# =========================================================
+     ✅ RR: ใบรับรองแทนใบเสร็จรับเงิน
+     - 1 รายการ = 1 แผ่น A4
+     - ฟอร์มอยู่ครึ่งบน (ครึ่ง A4 แนวตั้ง)
+     ========================================================= #}
+
+    {% for r in rows %}
+      <div class="a4sheet">
+        <div class="halfA4">
+
+          {% set _rows_one = [r] %}
+          {% set rows = _rows_one %}
+
+          {# ✅ ตั้ง total_amount ต่อรายการ เพื่อให้ตัวสะกดจำนวนเงินถูกต้อง #}
+          {% set total_amount = (r.amount or 0) %}
+
+          {% set doc_type = _dt %}
+          {% set doc_date = (today.isoformat() if today else "") %}
+          {% set project_code = project.code %}
+          {% set project_name = project.name %}
+
+          {% include "projects/vouchers/print_receipt_cert.html" %}
+        </div>
+      </div>
+    {% endfor %}
+
+  {% endif %}
+{% endif %}
+</div>
+
+{% endblock %}

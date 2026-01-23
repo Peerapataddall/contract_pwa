@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% set title = 'สรุป' %}
+
+{% block content %}
+<style>
+  .dashFilters{
+    display:flex; gap:10px; flex-wrap:wrap; align-items:end; justify-content:space-between;
+  }
+  .dashFilters .left{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn{ min-height:44px; }
+  .input{ min-height:44px; }
+  .kpiGrid{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:12px;
+  }
+  .kpi{
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(10,15,25,.35);
+    border-radius: 16px;
+    padding: 12px 14px;
+  }
+  .kpi .k{ font-size:12px; opacity:.75; }
+  .kpi .v{ font-size:22px; font-weight:800; margin-top:4px; }
+  .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
+  .table{ min-width: 820px; }
+
+  @media (max-width: 860px){
+    .kpiGrid{ grid-template-columns: 1fr 1fr; }
+  }
+</style>
+
+<div class="pagehead">
+  <div>
+    <h1>สรุปภาพรวม</h1>
+    <div class="muted">กรองตาม “วันเริ่มโครงการ” (เดือน/ปี)</div>
+  </div>
+</div>
+
+<div class="card">
+  <form class="dashFilters" method="get" action="{{ url_for('pages.dashboard') }}">
+    <div class="left">
+      <div>
+        <label class="label">ปี</label>
+        <select class="input" name="year">
+          {% for y in years %}
+            <option value="{{ y }}" {{ 'selected' if y==year else '' }}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="label">เดือน</label>
+        <select class="input" name="month">
+          <option value="" {{ 'selected' if not month else '' }}>ทั้งปี</option>
+          {% for m in range(1,13) %}
+            <option value="{{ m }}" {{ 'selected' if month==m else '' }}>{{ "%02d"|format(m) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <button class="btn btn-primary" type="submit">🔎 ดูผล</button>
+      </div>
+    </div>
+
+    <div>
+      <a class="btn" href="{{ url_for('pages.dashboard_export_xlsx', year=year, month=month or '') }}">⬇️ Export Excel</a>
+    </div>
+  </form>
+</div>
+
+<div class="kpiGrid mt-12">
+  <div class="kpi">
+    <div class="k">ค่าวัสดุรวม</div>
+    <div class="v mono">{{ '%.2f'|format(totals.materials or 0) }}</div>
+  </div>
+  <div class="kpi">
+    <div class="k">ผู้รับเหมาช่วงรวม (จ่ายจริง)</div>
+    <div class="v mono">{{ '%.2f'|format(totals.subs or 0) }}</div>
+  </div>
+  <div class="kpi">
+    <div class="k">ค่าใช้จ่ายอื่นรวม</div>
+    <div class="v mono">{{ '%.2f'|format(totals.expenses or 0) }}</div>
+  </div>
+  <div class="kpi">
+    <div class="k">รวมทั้งหมด</div>
+    <div class="v mono">{{ '%.2f'|format(totals.grand or 0) }}</div>
+  </div>
+</div>
+
+<div class="card mt-12">
+  <div class="section-head">
+    <div>
+      <div class="section-title">Top 5 โครงการใช้เงินสูงสุด</div>
+      <div class="muted">ตามช่วงที่กรอง</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>รหัส</th>
+          <th>ชื่อโครงการ</th>
+          <th class="right">ค่าวัสดุ</th>
+          <th class="right">ผู้รับเหมาช่วง</th>
+          <th class="right">อื่นๆ</th>
+          <th class="right">รวม</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if top5 %}
+          {% for row in top5 %}
+          <tr>
+            <td class="mono">{{ row.code }}</td>
+            <td>{{ row.name }}</td>
+            <td class="right mono">{{ '%.2f'|format(row.materials) }}</td>
+            <td class="right mono">{{ '%.2f'|format(row.subs) }}</td>
+            <td class="right mono">{{ '%.2f'|format(row.expenses) }}</td>
+            <td class="right mono" style="font-weight:800;">{{ '%.2f'|format(row.total) }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="6" class="muted">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

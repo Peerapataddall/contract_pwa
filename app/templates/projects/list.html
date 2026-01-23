@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% set title = 'รายการโครงการ' %}
+
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>รายการโครงการ</h1>
+    <div class="muted">ค้นหาได้จาก “ชื่อโครงการ” หรือ “รหัสโครงการ”</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('pages.project_new') }}">➕ เพิ่มโครงการ</a>
+  </div>
+</div>
+
+<form class="search" method="get" action="{{ url_for('pages.project_list') }}">
+  <input class="input" name="q" value="{{ q }}" placeholder="ค้นหา: ชื่อโครงการ / รหัสโครงการ" />
+  <button class="btn" type="submit">ค้นหา</button>
+  {% if q %}
+    <a class="btn btn-ghost" href="{{ url_for('pages.project_list') }}">ล้าง</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width: 110px;">รหัส</th>
+          <th>ชื่อโครงการ</th>
+          <th style="width: 140px;">สถานะ</th>
+          <th style="width: 140px;" class="right">ต้นทุนรวม</th>
+          <th style="width: 180px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in projects %}
+        <tr>
+          <td class="mono">{{ p.code }}</td>
+          <td>
+            <a class="link" href="{{ url_for('pages.project_view', pid=p.id) }}">{{ p.name }}</a>
+            {% if p.customer_name %}
+              <div class="muted">ลูกค้า: {{ p.customer_name }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <span class="pill pill-{{ p.status|lower }}">{{ {'IN_PROGRESS':'กำลังทำงาน','DEFECT':'กำลังเก็บ Defect','DONE':'งานจบ'}[p.status] if p.status in ['IN_PROGRESS','DEFECT','DONE'] else p.status }}</span>
+          </td>
+          <td class="right mono">{{ '%.2f'|format(p.total_cost) }}</td>
+          <td class="right">
+            <a class="btn btn-small" href="{{ url_for('pages.project_edit', pid=p.id) }}">✏️ แก้ไข</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted center" style="padding: 18px;">ยังไม่มีข้อมูล</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

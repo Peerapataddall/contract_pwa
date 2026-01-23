@@ -1,0 +1,399 @@
+{# PV 1 ใบ (ใช้ include จาก print_pv.html) #}
+
+<style>
+  /* ====== PV FORM LOOK (เหมือนแบบฟอร์มตัวอย่าง) ====== */
+  .pv-form{
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border: 2px solid #000;
+    background: #fff;
+    color:#000;
+    font-family: Tahoma, "Sarabun", Arial, sans-serif;
+  }
+
+  .pv-header{
+    display: grid;
+    grid-template-columns: 52mm 1fr 55mm;
+    gap: 6mm;
+    align-items: start;
+    padding: 6mm 6mm 4mm 6mm;
+    border-bottom: 2px solid #000;
+  }
+
+  .pv-logo{ display:flex; align-items:flex-start; gap: 6px; }
+  .pv-logo img{
+    width: 48mm;
+    height: 18mm;
+    object-fit: contain;
+    display:block;
+  }
+
+  .pv-title{ text-align: center; line-height: 1.15; padding-top: 1mm; }
+  .pv-title .company{ font-size: 14px; font-weight: 800; color:#000; }
+  .pv-title .docname{ font-size: 12px; font-weight: 800; margin-top: 2mm; color:#000; }
+  .pv-title .en{
+    font-size: 11px;
+    font-weight: 700;
+    color: #000;
+    margin-top: 1mm;
+    text-decoration: underline;
+  }
+
+  .pv-docbox{ border: 2px solid #000; font-size: 10px; color:#000; }
+  .pv-docbox .row{
+    display:grid; grid-template-columns: 18mm 1fr; border-bottom: 1px solid #000;
+  }
+  .pv-docbox .row:last-child{ border-bottom: 0; }
+  .pv-docbox .cell{ padding: 2.2mm 2.5mm; border-right: 1px solid #000; color:#000; }
+  .pv-docbox .cell:last-child{ border-right: 0; }
+
+  .pv-body{ padding: 4mm 6mm 0 6mm; color:#000; }
+
+  .line{
+    display:inline-block;
+    border-bottom: 1px solid #000;
+    height: 14px;
+    line-height: 14px;
+    vertical-align: bottom;
+    min-width: 40mm;
+    padding: 0 2mm;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .line.lg{ min-width: 90mm; }
+  .line.md{ min-width: 55mm; }
+  .line.sm{ min-width: 28mm; }
+
+  .pv-row{
+    display:grid; grid-template-columns: 1fr 1fr;
+    gap: 10mm; margin-bottom: 3mm; font-size: 10.5px;
+    color:#000;
+  }
+
+  .pv-payrow{
+    display:grid;
+    grid-template-columns: 30mm 45mm 1fr 1fr;
+    gap: 6mm; margin-top: 2mm; font-size: 10.5px;
+    color:#000;
+  }
+
+  .chk{
+    display:inline-flex; align-items:center; justify-content:center;
+    width: 12px; height: 12px; border: 1px solid #000;
+    margin-left: 2mm; position: relative; top: 2px;
+  }
+  .chk:after{
+    content:"✓"; font-weight: 900; font-size: 12px; line-height: 1;
+    position: relative; top: -1px; color:#000;
+  }
+
+  /* ===== Table ===== */
+  .pv-table-wrap{
+    border-top: 2px solid #000;
+    border-bottom: 2px solid #000;
+    margin-top: 4mm;
+  }
+  table.pv-table{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    color:#000;
+  }
+  .pv-table th, .pv-table td{
+    border: 1px solid #000;
+    padding: 2.2mm 2mm;
+    vertical-align: top;
+    color:#000;
+  }
+  .pv-table thead th{ font-weight: 800; text-align: center; color:#000; }
+  .right{ text-align:right; }
+  .center{ text-align:center; }
+  .muted{ font-size: 9px; color:#000; opacity: 1; }
+
+  .pv-total-row td{ border-top: 2px solid #000; font-weight: 800; color:#000; }
+  .pv-note{ font-size: 9.5px; margin: 2mm 0 0 0; color:#000; }
+
+  /* ✅ จำนวนเงินตัวอักษร */
+  .pv-amt-text{
+    margin-top: 2.5mm;
+    font-size: 10.5px;
+    color:#000;
+    display:flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .pv-amt-text .label{
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .pv-amt-text .text{
+    border-bottom: 1px solid #000;
+    flex: 1;
+    min-height: 14px;
+    padding: 0 2mm 1mm 2mm;
+  }
+
+  /* ===== Signature ===== */
+  .pv-sign{ padding: 3mm 6mm 5mm 6mm; color:#000; }
+
+  .sign3{
+    display:grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10mm;
+    align-items:end;
+    margin-top: 0mm;
+    font-size: 10.5px;
+    color:#000;
+  }
+
+  .sig-block .label{
+    font-weight: 800;
+    margin: 0 0 0.5mm 0;
+    color:#000;
+  }
+
+  .sig-line{
+    border-bottom: 1px solid #000;
+    height: 14px;
+    line-height: 14px;
+    width: 100%;
+  }
+
+  .sig-img{
+    margin-top: 2mm;
+    height: 18mm;                 /* ✅ กันพื้นที่ลายเซ็นให้เท่ากันทุกช่อง */
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .sig-img img{
+    max-height: 18mm;
+    max-width: 40mm;
+    object-fit: contain;
+    display:block;
+  }
+</style>
+
+{# =========================================================
+   ✅ รับตัวแปรได้ทั้ง “ชื่อแบบเดิม” และ “ชื่อแบบที่บางไฟล์ตั้งไว้”
+   ========================================================= #}
+{% set _doc_date = (
+  _doc_date if _doc_date is defined else
+  (doc_date if doc_date is defined else "")
+) %}
+{% set _pcode = (
+  _pcode if _pcode is defined else
+  (project_code if project_code is defined else "")
+) %}
+{% set _pname = (
+  _pname if _pname is defined else
+  (project_name if project_name is defined else "")
+) %}
+{% set _rows = (
+  _rows if _rows is defined else
+  (rows if rows is defined else [])
+) %}
+{% set doc_type = (doc_type if doc_type is defined and doc_type else "PV") %}
+
+{# =========================================================
+   ✅ โหมด PV_WHT: 2 แถวตามโจทย์
+   - จ่ายให้ = vendor_name
+   - รายการ 1: จ้างทำของ = contract_amount
+   - รายการ 2: ภาษีหัก ณ ที่จ่าย = withholding_amount (แสดง %)
+   - รวม = net_pay (ยอดจ่ายหลังหัก)
+   ========================================================= #}
+{% set is_wht = (doc_type|string|upper) == "PV_WHT" %}
+
+{% if is_wht and _rows and (_rows|length) %}
+  {% set rr0 = _rows[0] %}
+  {% set wht_vendor = (rr0.vendor_name if rr0.vendor_name is defined and rr0.vendor_name else (rr0.particular if rr0.particular is defined else "")) %}
+  {% set wht_rate = (rr0.withholding_rate if rr0.withholding_rate is defined and rr0.withholding_rate is not none else 0) %}
+  {% set wht_amount = (rr0.withholding_amount if rr0.withholding_amount is defined and rr0.withholding_amount is not none else 0) %}
+  {% set contract_amount = (
+    rr0.contract_amount if rr0.contract_amount is defined and rr0.contract_amount is not none else
+    (rr0.gross_amount if rr0.gross_amount is defined and rr0.gross_amount is not none else
+      (rr0.amount if rr0.amount is defined and rr0.amount is not none else 0)
+    )
+  ) %}
+  {% set pay_amount = ((contract_amount|float) - (wht_amount|float)) %}
+  {% set total_amount = pay_amount %}
+{% else %}
+  {# PV ปกติ: ถ้าไม่ได้ส่ง total_amount มา ให้รวมจาก _rows #}
+  {% if total_amount is not defined or total_amount is none %}
+    {% set ns = namespace(total=0.0) %}
+    {% if _rows and (_rows|length) %}
+      {% for rr in _rows %}
+        {% set ns.total = ns.total + ((rr.amount or rr.total or 0)|float) %}
+      {% endfor %}
+    {% endif %}
+    {% set total_amount = ns.total %}
+  {% endif %}
+{% endif %}
+
+<div class="pv-form">
+
+  <!-- HEADER -->
+  <div class="pv-header">
+    <div class="pv-logo">
+      <img src="{{ url_for('static', filename='brand/giant_logo.png') }}" alt="GIANT LOGO">
+    </div>
+
+    <div class="pv-title">
+      <div class="company">บริษัท ไจแอ้นท์ เดคคอเรชัŕน จำกัด &nbsp; (สำนักงานใหญ่)</div>
+      <div class="docname">ใบสำคัญจ่าย</div>
+      <div class="en">PAYMENT VOUCHER</div>
+    </div>
+
+    <div class="pv-docbox">
+      <div class="row">
+        <div class="cell"><b>เลขที่</b> No.</div>
+        <div class="cell"></div>
+      </div>
+      <div class="row">
+        <div class="cell"><b>วันที่</b> Date</div>
+        <div class="cell">{{ _doc_date }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="pv-body">
+
+    <div class="pv-row">
+      <div>
+        จ่ายให้
+        {% if is_wht %}
+          <span class="line lg">{{ wht_vendor }}</span>
+        {% else %}
+          <span class="line lg"></span>
+        {% endif %}
+      </div>
+      <div style="text-align:right;">
+        งาน/โครงการ <b>{{ _pcode }}</b>{% if _pname %} — {{ _pname }}{% endif %}
+      </div>
+    </div>
+
+    <div class="pv-payrow">
+      <div>
+        เงินสด <span class="line sm"></span>
+      </div>
+      <div>
+        โอน {% if is_wht %}<span class="chk"></span>{% else %}<span class="chk" style="visibility:hidden;"></span>{% endif %}
+        <span class="line md"></span>
+      </div>
+      <div>
+        เช็คธนาคาร <span class="line md"></span>
+      </div>
+      <div>
+        เลขที่เช็ค <span class="line md"></span>
+      </div>
+    </div>
+
+    <div style="margin-top:2mm; font-size:10.5px;">
+      เรียกคืนที่ <span class="line lg"></span>
+      งาน <span class="line md"></span>
+    </div>
+
+    <!-- TABLE -->
+    <div class="pv-table-wrap">
+      <table class="pv-table">
+        <thead>
+          <tr>
+            <th style="width:18%;">รหัสบัญชี<br><span class="muted">Account</span></th>
+            <th style="width:15%;">เลขที่สินค้า<br><span class="muted">No.</span></th>
+            <th>รายการ<br><span class="muted">Particulars</span></th>
+            <th style="width:20%;">จำนวนเงิน Amount<br><span class="muted">บาท Baht</span></th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% if is_wht %}
+            <tr>
+              <td class="center"></td>
+              <td class="center"></td>
+              <td><b>จ้างทำของ</b></td>
+              <td class="right">{{ "%.2f"|format((contract_amount or 0)|float) }}</td>
+            </tr>
+            <tr>
+              <td class="center"></td>
+              <td class="center"></td>
+              <td><b>ภาษีหัก ณ ที่จ่าย {{ "%.2f"|format((wht_rate or 0)|float) }}%</b></td>
+              <td class="right">{{ "%.2f"|format((wht_amount or 0)|float) }}</td>
+            </tr>
+          {% else %}
+            {% if _rows and _rows|length %}
+              {% for rr in _rows %}
+              <tr>
+                <td class="center"></td>
+                <td class="center"></td>
+                <td>
+                  <b>{{ rr.title }}</b>
+                  {% if rr.particular %}<div class="muted">{{ rr.particular }}</div>{% endif %}
+                </td>
+                <td class="right">{{ "%.2f"|format((rr.amount or rr.total or 0)|float) }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td class="center">&nbsp;</td>
+                <td class="center">&nbsp;</td>
+                <td>&nbsp;</td>
+                <td class="right">0.00</td>
+              </tr>
+            {% endif %}
+          {% endif %}
+        </tbody>
+
+        <tfoot>
+          <tr class="pv-total-row">
+            <td colspan="3" class="right">รวม</td>
+            <td class="right">{{ "%.2f"|format((total_amount or 0)|float) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="pv-amt-text">
+      <div class="label">จำนวนเงิน (ตัวอักษร)</div>
+      <div class="text">{{ (total_amount or 0)|thai_baht_text }}</div>
+    </div>
+
+    <div class="pv-note">เอกสารนี้ใช้ประกอบการจ่ายเงิน/เบิกค่าใช้จ่ายของโครงการ</div>
+  </div>
+
+  <!-- SIGNATURE -->
+  <div class="pv-sign">
+    <div class="sign3">
+
+      <!-- ✅ ผู้รับเงิน: ไม่มีรูปก็ต้องมีพื้นที่ + เส้นเซ็น -->
+      <div class="sig-block">
+        <div class="label">ผู้รับเงิน</div>
+        <div class="sig-img"></div>
+        <div class="sig-line"></div>
+      </div>
+
+      <!-- ✅ ผู้จัดทำ -->
+      <div class="sig-block">
+        <div class="label">ผู้จัดทำ</div>
+        <div class="sig-img">
+          <img src="{{ url_for('static', filename='brand/sign_prepared.png') }}" alt="prepared">
+        </div>
+        <div class="sig-line"></div>
+      </div>
+
+      <!-- ✅ ผู้อนุมัติ -->
+      <div class="sig-block">
+        <div class="label">ผู้อนุมัติ</div>
+        <div class="sig-img">
+          <img src="{{ url_for('static', filename='brand/sign_approved.png') }}" alt="approved">
+        </div>
+        <div class="sig-line"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

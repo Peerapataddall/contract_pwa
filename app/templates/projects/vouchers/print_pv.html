@@ -1,0 +1,29 @@
+{# ---------------------------------------------------------
+  print_pv.html  (PARTIAL)
+  ถูก include จาก vouchers_print.html
+  ห้าม extends base.html ไม่งั้น HTML ซ้อนและ print เพี้ยนได้
+---------------------------------------------------------- #}
+
+{# ✅ fallback ให้ PV มีวันที่/โครงการเสมอ #}
+{% set _doc_date = (doc_date if doc_date is defined and doc_date else (today.isoformat() if today is defined and today else "")) %}
+{% set _pcode = (project_code if project_code is defined and project_code else (project.code if project is defined else "")) %}
+{% set _pname = (project_name if project_name is defined and project_name else (project.name if project is defined else "")) %}
+
+{# ✅ รองรับ rows หรือ lines #}
+{% set _rows = rows if rows is defined else (lines if lines is defined else []) %}
+
+{# ✅ fallback รวมเงิน (แก้ scope ของ Jinja ให้ถูกต้อง) #}
+{% if total_amount is not defined or total_amount is none %}
+  {% set ns = namespace(total=0.0) %}
+  {% if _rows and _rows|length %}
+    {% for rr in _rows %}
+      {% set ns.total = ns.total + ((rr.amount or rr.total or 0)|float) %}
+    {% endfor %}
+  {% endif %}
+  {% set total_amount = ns.total %}
+{% else %}
+  {% set total_amount = (total_amount or 0)|float %}
+{% endif %}
+
+{# ส่งตัวแปรเข้าฟอร์มจริง #}
+{% include "projects/vouchers/_pv_one.html" %}
