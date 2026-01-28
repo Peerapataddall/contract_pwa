@@ -2,8 +2,21 @@
 <html lang="th">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- ✅ PWA / Mobile viewport fix -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+  <!-- ✅ Theme -->
   <meta name="theme-color" content="#0b1220" />
+
+  <!-- ✅ iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Contractor Tracker" />
+
+  <!-- ✅ Android PWA hint -->
+  <meta name="mobile-web-app-capable" content="yes" />
+
   <title>{{ title or "Contractor Project Tracker" }}</title>
 
   <link rel="manifest" href="{{ url_for('static', filename='pwa/manifest.json') }}">
@@ -11,55 +24,123 @@
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 
+  <!-- ✅ Emergency CSS fix (until you send app.css)
+       - กันปัญหา 100vh เพี้ยนบนมือถือ/PWA
+       - กัน safe-area (notch/home bar) ทำให้ layout ดูโดนดัน -->
+  <style>
+    :root{
+      --safe-top: env(safe-area-inset-top);
+      --safe-right: env(safe-area-inset-right);
+      --safe-bottom: env(safe-area-inset-bottom);
+      --safe-left: env(safe-area-inset-left);
+
+      /* จะถูก set โดย JS ด้านล่าง */
+      --app-vh: 1vh;
+    }
+
+    html, body{
+      height: auto;
+      min-height: 100%;
+    }
+
+    body{
+      min-height: 100dvh; /* modern mobile */
+      padding-bottom: var(--safe-bottom);
+      -webkit-text-size-adjust: 100%;
+    }
+
+    /* ถ้า topbar เป็น fixed/sticky แล้วชิดขอบเกินไปบน iOS */
+    .topbar{
+      padding-top: var(--safe-top);
+    }
+
+    /* Container ไม่ให้ชน safe area ซ้าย/ขวา */
+    .container{
+      padding-left: max(16px, var(--safe-left));
+      padding-right: max(16px, var(--safe-right));
+    }
+
+    /* กันการสั่น/ขยับเวลาเปิดคีย์บอร์ดในมือถือบางรุ่น */
+    body.drawer-open{
+      overscroll-behavior: none;
+      touch-action: manipulation;
+    }
+  </style>
+
   {% block head %}{% endblock %}
 </head>
 <body>
+  <!-- Drawer backdrop -->
+  <div class="drawer-backdrop" data-drawer-close></div>
+
+  <!-- Drawer (ใช้ทั้งมือถือและคอม) -->
+  <aside class="drawer" aria-label="เมนูหลัก" aria-hidden="true">
+    <div class="drawer__head">
+      <div class="drawer__brand">
+        <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="drawer__icon">
+        <div>
+          <div class="drawer__title">Contractor Tracker</div>
+          <div class="drawer__subtitle">โครงการ • วัสดุ • ผู้รับเหมาช่วง</div>
+        </div>
+      </div>
+      <button class="drawer__close" type="button" aria-label="ปิดเมนู" data-drawer-close>✕</button>
+    </div>
+
+    <nav class="drawer__nav">
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/projects') else '' }}" href="{{ url_for('pages.project_list') }}">
+        <span class="drawer__emoji">📁</span>
+        <span>โครงการ</span>
+      </a>
+      <a class="drawer__link {{ 'is-active' if request.path == '/dashboard' else '' }}" href="{{ url_for('pages.dashboard') }}">
+        <span class="drawer__emoji">📊</span>
+        <span>สรุป</span>
+      </a>
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/dashboard/income') else '' }}" href="{{ url_for('pages.dashboard_income') }}">
+        <span class="drawer__emoji">💰</span>
+        <span>สรุปรายรับ</span>
+      </a>
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/dashboard/expense') else '' }}" href="{{ url_for('pages.dashboard_expense') }}">
+        <span class="drawer__emoji">💸</span>
+        <span>สรุปรายจ่าย</span>
+      </a>
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/docs') else '' }}" href="{{ url_for('docs.docs_list') }}">
+        <span class="drawer__emoji">🧾</span>
+        <span>เอกสารขาย</span>
+      </a>
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/customers') else '' }}" href="{{ url_for('customers.customers_list') }}">
+        <span class="drawer__emoji">👥</span>
+        <span>ลูกค้า</span>
+      </a>
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/settings/company') else '' }}" href="{{ url_for('settings.company_settings') }}">
+        <span class="drawer__emoji">🏢</span>
+        <span>ตั้งค่าบริษัท</span>
+      </a>
+    </nav>
+
+    <div class="drawer__footer">
+      <div class="muted" style="font-size:12px;">
+        ทิป: กดเมนู ☰ เพื่อสลับหน้า
+      </div>
+    </div>
+  </aside>
+
   <header class="topbar">
-    <div class="brand">
-      <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="brand__icon">
-      <div class="brand__text">
-        <div class="brand__title">Contractor Tracker</div>
-        <div class="brand__subtitle">โครงการ • วัสดุ • ผู้รับเหมาช่วง</div>
+    <div class="topbar__inner">
+      <button class="hamburger" type="button" aria-label="เปิดเมนู" data-drawer-open>
+        <span class="hamburger__bar"></span>
+        <span class="hamburger__bar"></span>
+        <span class="hamburger__bar"></span>
+      </button>
+
+      <div class="brand">
+        <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="brand__icon">
+        <div class="brand__text">
+          <div class="brand__title">Contractor Tracker</div>
+          <div class="brand__subtitle">โครงการ • วัสดุ • ผู้รับเหมาช่วง</div>
+        </div>
       </div>
     </div>
   </header>
-
-  <nav class="tabs">
-    <a class="tab {{ 'is-active' if request.path.startswith('/projects') else '' }}" href="{{ url_for('pages.project_list') }}">
-      <span class="tab__icon">📁</span>
-      <span class="tab__label">โครงการ</span>
-    </a>
-
-    <a class="tab {{ 'is-active' if request.path == '/dashboard' else '' }}" href="{{ url_for('pages.dashboard') }}">
-      <span class="tab__icon">📊</span>
-      <span class="tab__label">สรุป</span>
-    </a>
-    <a class="tab {{ 'is-active' if request.path.startswith('/dashboard/income') else '' }}" href="{{ url_for('pages.dashboard_income') }}">
-      <span class="tab__icon">💰</span>
-      <span class="tab__label">สรุปรายรับ</span>
-    </a>
-
-    <a class="tab {{ 'is-active' if request.path.startswith('/dashboard/expense') else '' }}" href="{{ url_for('pages.dashboard_expense') }}">
-      <span class="tab__icon">💸</span>
-      <span class="tab__label">สรุปรายจ่าย</span>
-    </a>
-
-    <a class="tab {{ 'is-active' if request.path.startswith('/docs') else '' }}" href="{{ url_for('docs.docs_list') }}">
-      <span class="tab__icon">🧾</span>
-      <span class="tab__label">เอกสารขาย</span>
-    </a>
-
-
-    <a class="tab {{ 'is-active' if request.path.startswith('/customers') else '' }}" href="{{ url_for('customers.customers_list') }}">
-      <span class="tab__icon">👥</span>
-      <span class="tab__label">ลูกค้า</span>
-    </a>
-
-    <a class="tab {{ 'is-active' if request.path.startswith('/settings/company') else '' }}" href="{{ url_for('settings.company_settings') }}">
-      <span class="tab__icon">🏢</span>
-      <span class="tab__label">ตั้งค่าบริษัท</span>
-    </a>
-  </nav>
 
   <main class="container">
 
@@ -75,6 +156,40 @@
 
     {% block content %}{% endblock %}
   </main>
+
+  <script>
+    (function(){
+      // ✅ Mobile viewport height fix (PWA/Chrome/iOS): set --app-vh
+      function setAppVh(){
+        var vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--app-vh', vh + 'px');
+      }
+      setAppVh();
+      window.addEventListener('resize', setAppVh);
+      window.addEventListener('orientationchange', setAppVh);
+
+      const body = document.body;
+      const openBtn = document.querySelector('[data-drawer-open]');
+      const closeEls = document.querySelectorAll('[data-drawer-close]');
+      const drawer = document.querySelector('.drawer');
+
+      function openDrawer(){
+        body.classList.add('drawer-open');
+        if(drawer) drawer.setAttribute('aria-hidden','false');
+      }
+      function closeDrawer(){
+        body.classList.remove('drawer-open');
+        if(drawer) drawer.setAttribute('aria-hidden','true');
+      }
+
+      if(openBtn){ openBtn.addEventListener('click', openDrawer); }
+      closeEls.forEach(el => el.addEventListener('click', closeDrawer));
+
+      document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape') closeDrawer();
+      });
+    })();
+  </script>
 
   <script src="{{ url_for('static', filename='js/pwa.js') }}"></script>
   {% block scripts %}{% endblock %}

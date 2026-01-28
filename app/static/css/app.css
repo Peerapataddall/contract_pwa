@@ -7,8 +7,16 @@
   --muted:rgba(231,238,252,.72);
   --primary:#3b82f6;
   --danger:#ef4444;
+
   --shadow:0 18px 50px rgba(0,0,0,.35);
+  --shadow2:0 10px 26px rgba(0,0,0,.22); /* ✅ เคยถูกเรียกใช้ แต่เดิมไม่ประกาศ */
   --radius:18px;
+
+  /* ✅ Safe area (ช่วย PWA มือถือ) */
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
 }
 
 *{box-sizing:border-box}
@@ -20,14 +28,22 @@ body{
               radial-gradient(900px 600px at 100% 10%, rgba(34,197,94,.12), transparent 55%),
               var(--bg);
   color:var(--text);
+
+  /* ✅ กันปัญหา viewport เพี้ยนบนมือถือ/PWA */
+  min-height: 100dvh;
+  padding-bottom: var(--safe-bottom);
+  -webkit-text-size-adjust: 100%;
 }
 
 a{color:inherit;text-decoration:none}
 
+/* =========================
+   Topbar
+   ========================= */
 .topbar{
-  padding:14px 14px 10px;
-  position:sticky;
-  top:0;
+  padding: calc(14px + var(--safe-top)) 14px 10px; /* ✅ เผื่อ safe top */
+  position: sticky;
+  top: 0;
   background: linear-gradient(to bottom, rgba(11,18,32,.92), rgba(11,18,32,.66));
   backdrop-filter: blur(10px);
   border-bottom:1px solid var(--line);
@@ -59,7 +75,12 @@ a{color:inherit;text-decoration:none}
 .tab.is-active{border-color: rgba(59,130,246,.65); background: rgba(59,130,246,.12)}
 .tab__label{font-weight:700}
 
-.container{max-width:1100px;margin:0 auto;padding:14px 14px 28px}
+/* ✅ container เผื่อ safe left/right */
+.container{
+  max-width:1100px;
+  margin:0 auto;
+  padding:14px max(14px, var(--safe-right)) 28px max(14px, var(--safe-left));
+}
 
 h1{margin:0;font-size:22px}
 
@@ -103,7 +124,11 @@ h1{margin:0;font-size:22px}
 .hint{font-size:12px;color:var(--muted);margin-top:6px}
 .muted{color:var(--muted)}
 .big{font-size:20px;font-weight:800}
-.mono{font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+.mono{
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  white-space: nowrap; /* ✅ กันตัดบรรทัดเลข */
+}
 .pre{white-space:pre-wrap;line-height:1.45}
 
 .input{
@@ -173,7 +198,12 @@ input::placeholder, textarea::placeholder{
 .search .input{flex:1;min-width:220px}
 
 /* ===== Tables ===== */
-.table-wrap{overflow:auto;border-radius:14px;border:1px solid var(--line)}
+.table-wrap{
+  overflow:auto;
+  border-radius:14px;
+  border:1px solid var(--line);
+  -webkit-overflow-scrolling: touch; /* ✅ mobile scroll smooth */
+}
 .table{width:100%;border-collapse:collapse;background: rgba(0,0,0,.14)}
 .table th,.table td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
 .table thead th{font-size:12px;color:var(--muted);text-transform:none;letter-spacing:.2px}
@@ -205,15 +235,172 @@ input::placeholder, textarea::placeholder{
 /* ===== Bars ===== */
 .bar-row{display:flex;align-items:center;justify-content:space-between;padding:10px;border:1px solid rgba(255,255,255,.10);border-radius:14px;background: rgba(255,255,255,.03);margin-bottom:8px}
 
-/* ===== New: Alerts (ใช้กับ flash message ใน base.html) ===== */
+/* ===== Alerts (flash message) ===== */
 .alert{
   padding: 10px 12px;
   border-radius: 14px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.06);
-  box-shadow: 0 10px 26px rgba(0,0,0,.22);
+  box-shadow: var(--shadow2);
   font-weight: 800;
 }
 .alert--success{border-color: rgba(34,197,94,.35)}
 .alert--error{border-color: rgba(239,68,68,.35)}
 .alert--info{border-color: rgba(59,130,246,.35)}
+
+/* =========================================================
+   Drawer / Hamburger
+   ========================================================= */
+.desktop-only{display:none !important}
+.mobile-only{display:none !important}
+
+.topbar__inner{
+  max-width:1100px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+
+.hamburger{
+  width:44px;
+  height:44px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  box-shadow: var(--shadow2);
+}
+.hamburger__bar{
+  display:block;
+  width:18px;
+  height:2px;
+  background: rgba(231,238,252,.92);
+  border-radius:999px;
+}
+.hamburger__bar + .hamburger__bar{margin-top:4px}
+
+/* Drawer backdrop */
+.drawer-backdrop{
+  position:fixed;
+  inset:0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(6px);
+  opacity:0;
+  pointer-events:none;
+  transition: opacity .18s ease;
+  z-index:49;
+}
+.drawer{
+  position:fixed;
+  left:0;
+  top:0;
+  bottom:0;
+  width:min(320px, 86vw);
+  transform: translateX(-102%);
+  transition: transform .2s ease;
+  z-index:50;
+  background: linear-gradient(180deg, rgba(15,27,51,.96), rgba(11,18,32,.96));
+  border-right:1px solid rgba(255,255,255,.10);
+  box-shadow: 0 18px 60px rgba(0,0,0,.55);
+  display:flex;
+  flex-direction:column;
+}
+
+body.drawer-open .drawer{transform: translateX(0)}
+body.drawer-open .drawer-backdrop{opacity:1; pointer-events:auto}
+
+/* ✅ head layout ให้ close อยู่ขวาบนชัวร์ */
+.drawer__head{
+  padding:14px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+}
+.drawer__brand{display:flex; align-items:center; gap:12px}
+.drawer__icon{width:40px;height:40px;border-radius:12px; box-shadow: var(--shadow)}
+.drawer__title{font-weight:900; letter-spacing:.2px}
+.drawer__subtitle{font-size:12px; color: var(--muted)}
+.drawer__close{
+  margin-left:auto;
+  width:40px;height:40px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  cursor:pointer;
+}
+
+.drawer__nav{padding:12px; display:flex; flex-direction:column; gap:10px}
+.drawer__link{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 12px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  font-weight:900;
+}
+.drawer__link:hover{filter:brightness(1.08)}
+.drawer__link.is-active{border-color: rgba(59,130,246,.55); background: rgba(59,130,246,.14)}
+.drawer__emoji{width:22px; text-align:center}
+
+.drawer__footer{margin-top:auto; padding:12px 14px; border-top:1px solid rgba(255,255,255,.10)}
+
+/* ✅ ป้องกัน body เลื่อนตอน drawer เปิด (แต่ไม่ทำให้ vh เพี้ยน) */
+body.drawer-open{
+  overflow: hidden;
+  position: relative;
+}
+
+/* =========================================================
+   Mobile readability + Table/Card switch
+   ========================================================= */
+
+/* ค่าเริ่มต้น: desktop = table */
+.desktop-table{display:block}
+.mobile-cards{display:none}
+
+@media (max-width: 720px){
+  .container{padding:12px max(12px, var(--safe-right)) 24px max(12px, var(--safe-left))}
+  .pagehead{flex-direction:column; align-items:flex-start}
+  .actions{justify-content:flex-start}
+
+  /* ✅ mobile = cards */
+  .desktop-table{display:none !important}
+  .mobile-cards{display:flex !important}
+}
+
+@media (min-width: 721px){
+  .mobile-cards{display:none !important}
+}
+
+.mobile-cards{
+  flex-direction:column;
+  gap:10px;
+}
+
+.mcard{
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.04);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow2);
+  padding:12px;
+}
+
+/* ถ้าหน้าอื่นไม่ได้ใช้ก็ไม่กระทบ */
+.mcard__top{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+.mcard__code{font-weight:900; letter-spacing:.2px}
+.mcard__name{font-size:16px; font-weight:900; margin-top:2px}
+.mcard__meta{font-size:12px; color: var(--muted); margin-top:4px; line-height:1.35}
+.mcard__right{display:flex; flex-direction:column; align-items:flex-end; gap:8px; min-width:92px}
+.mcard__amount{font-weight:900; font-size:16px}
+
+/* ให้ปุ่มบนมือถือกดง่าย */
+.mcard .btn-small{width:100%; justify-content:center}
