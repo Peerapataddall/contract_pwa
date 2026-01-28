@@ -15,7 +15,8 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from sqlalchemy import func
+from sqlalchemy import func, or_, and_
+
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -339,10 +340,31 @@ def dashboard():
 
     years = list(range(today.year - 5, today.year + 2))
 
-    q = Project.query.filter(Project.start_date.isnot(None))
-    q = q.filter(func.extract("year", Project.start_date) == year)
+    # ✅ Filter logic:
+    # - ถ้ามี start_date ให้ใช้ start_date เป็นหลัก (ตาม UI)
+    # - ถ้า start_date เป็น None ให้ fallback ใช้ Project.created_at เพื่อไม่ให้ dashboard ว่าง
     if month:
-        q = q.filter(func.extract("month", Project.start_date) == month)
+        start_filter = and_(
+            Project.start_date.isnot(None),
+            func.extract("year", Project.start_date) == year,
+            func.extract("month", Project.start_date) == month,
+        )
+        fallback_filter = and_(
+            Project.start_date.is_(None),
+            func.extract("year", Project.created_at) == year,
+            func.extract("month", Project.created_at) == month,
+        )
+    else:
+        start_filter = and_(
+            Project.start_date.isnot(None),
+            func.extract("year", Project.start_date) == year,
+        )
+        fallback_filter = and_(
+            Project.start_date.is_(None),
+            func.extract("year", Project.created_at) == year,
+        )
+
+    q = Project.query.filter(or_(start_filter, fallback_filter))
 
     projects = q.all()
 
@@ -385,7 +407,6 @@ def dashboard():
         totals=Totals(tot_m, tot_s, tot_e, tot_g),
         top5=top5,
     )
-
 
 # -------------------------
 # Export Excel
@@ -452,11 +473,28 @@ def dashboard_export_xlsx():
     year = request.args.get("year", type=int) or today.year
     month = request.args.get("month", type=int)
 
-    q = Project.query.filter(Project.start_date.isnot(None))
-    q = q.filter(func.extract("year", Project.start_date) == year)
     if month:
-        q = q.filter(func.extract("month", Project.start_date) == month)
+        start_filter = and_(
+            Project.start_date.isnot(None),
+            func.extract("year", Project.start_date) == year,
+            func.extract("month", Project.start_date) == month,
+        )
+        fallback_filter = and_(
+            Project.start_date.is_(None),
+            func.extract("year", Project.created_at) == year,
+            func.extract("month", Project.created_at) == month,
+        )
+    else:
+        start_filter = and_(
+            Project.start_date.isnot(None),
+            func.extract("year", Project.start_date) == year,
+        )
+        fallback_filter = and_(
+            Project.start_date.is_(None),
+            func.extract("year", Project.created_at) == year,
+        )
 
+    q = Project.query.filter(or_(start_filter, fallback_filter))
     projects = q.all()
 
     wb = Workbook()

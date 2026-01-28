@@ -195,14 +195,37 @@ class OtherExpense(db.Model, TimestampMixin):
     )
 
 
-def dashboard_aggregates() -> dict:
-    """Aggregate totals for dashboard."""
-    # รวมแยกหมวด
+def dashboard_aggregates(year: int | None = None, month: int | None = None) -> dict:
+    """
+    Aggregate totals for dashboard (filtered by Project.start_date month/year if provided).
+
+    ✅ คืน key ให้ตรงกับ template dashboard.html:
+      - materials, subs, expenses, grand
+      - other_by_category, projects_by_status
+      - top5 (list)
+
+    ✅ การกรอง:
+      - อิง Project.start_date (ตาม UI ระบุ)
+      - ถ้า project.start_date เป็น NULL จะไม่ถูกนับในช่วงที่กรอง
+    """
+    # ---------- Base project filter ----------
+    proj_q = db.session.query(Project.id)
+
+    if year:
+        proj_q = proj_q.filter(func.extract("year", Project.start_date) == int(year))
+    if month:
+        proj_q = proj_q.filter(func.extract("month", Project.start_date) == int(month))
+
+    project_ids_subq = proj_q.subquery()
+
+    # ---------- Totals by category (only projects in filter) ----------
     materials_total = (
         db.session.query(func.coalesce(func.sum(MaterialItem.unit_price * MaterialItem.qty), 0))
+        .filter(MaterialItem.project_id.in_(project_ids_subq))
         .scalar()
         or 0
     )
+
     subs_payable_total = (
         db.session.query(
             func.coalesce(
@@ -210,33 +233,124 @@ def dashboard_aggregates() -> dict:
                 0,
             )
         )
+        .filter(SubcontractorPayment.project_id.in_(project_ids_subq))
         .scalar()
         or 0
     )
+
     other_total = (
-        db.session.query(func.coalesce(func.sum(OtherExpense.amount), 0)).scalar() or 0
+        db.session.query(func.coalesce(func.sum(OtherExpense.amount), 0))
+        .filter(OtherExpense.project_id.in_(project_ids_subq))
+        .scalar()
+        or 0
     )
 
-    # หมวดค่าใช้จ่ายอื่นๆ แยกตาม category
+    # ---------- Other by category ----------
     rows = (
         db.session.query(OtherExpense.category, func.coalesce(func.sum(OtherExpense.amount), 0))
+        .filter(OtherExpense.project_id.in_(project_ids_subq))
         .group_by(OtherExpense.category)
         .order_by(func.sum(OtherExpense.amount).desc())
         .all()
     )
     other_by_category = [{"category": c, "total": float(t)} for c, t in rows]
 
-    # นับสถานะโครงการ
-    status_rows = db.session.query(Project.status, func.count(Project.id)).group_by(Project.status).all()
+    # ---------- Projects by status (in filter) ----------
+    status_rows = (
+        db.session.query(Project.status, func.count(Project.id))
+        .filter(Project.id.in_(project_ids_subq))
+        .group_by(Project.status)
+        .all()
+    )
     projects_by_status = {s: int(n) for s, n in status_rows}
 
+    # ---------- Top5 projects (sum materials/subs/other per project) ----------
+    # Materials per project
+    mat_rows = (
+        db.session.query(
+            MaterialItem.project_id.label("pid"),
+            func.coalesce(func.sum(MaterialItem.unit_price * MaterialItem.qty), 0).label("materials"),
+        )
+        .filter(MaterialItem.project_id.in_(project_ids_subq))
+        .group_by(MaterialItem.project_id)
+        .subquery()
+    )
+
+    # Subs per project
+    sub_rows = (
+        db.session.query(
+            SubcontractorPayment.project_id.label("pid"),
+            func.coalesce(
+                func.sum(SubcontractorPayment.contract_amount - SubcontractorPayment.withholding_amount),
+                0,
+            ).label("subs"),
+        )
+        .filter(SubcontractorPayment.project_id.in_(project_ids_subq))
+        .group_by(SubcontractorPayment.project_id)
+        .subquery()
+    )
+
+    # Other per project
+    oth_rows = (
+        db.session.query(
+            OtherExpense.project_id.label("pid"),
+            func.coalesce(func.sum(OtherExpense.amount), 0).label("expenses"),
+        )
+        .filter(OtherExpense.project_id.in_(project_ids_subq))
+        .group_by(OtherExpense.project_id)
+        .subquery()
+    )
+
+    top5_q = (
+        db.session.query(
+            Project.code.label("code"),
+            Project.name.label("name"),
+            func.coalesce(mat_rows.c.materials, 0).label("materials"),
+            func.coalesce(sub_rows.c.subs, 0).label("subs"),
+            func.coalesce(oth_rows.c.expenses, 0).label("expenses"),
+            (
+                func.coalesce(mat_rows.c.materials, 0)
+                + func.coalesce(sub_rows.c.subs, 0)
+                + func.coalesce(oth_rows.c.expenses, 0)
+            ).label("total"),
+        )
+        .filter(Project.id.in_(project_ids_subq))
+        .outerjoin(mat_rows, mat_rows.c.pid == Project.id)
+        .outerjoin(sub_rows, sub_rows.c.pid == Project.id)
+        .outerjoin(oth_rows, oth_rows.c.pid == Project.id)
+        .order_by(
+            (
+                func.coalesce(mat_rows.c.materials, 0)
+                + func.coalesce(sub_rows.c.subs, 0)
+                + func.coalesce(oth_rows.c.expenses, 0)
+            ).desc()
+        )
+        .limit(5)
+    )
+
+    top5 = []
+    for r in top5_q.all():
+        top5.append(
+            {
+                "code": r.code,
+                "name": r.name,
+                "materials": float(r.materials or 0),
+                "subs": float(r.subs or 0),
+                "expenses": float(r.expenses or 0),
+                "total": float(r.total or 0),
+            }
+        )
+
     return {
-        "materials_total": float(materials_total),
-        "subcontractors_total": float(subs_payable_total),
-        "other_total": float(other_total),
-        "grand_total": float(materials_total + subs_payable_total + other_total),
+        # ✅ keys ตรงกับ dashboard.html
+        "materials": float(materials_total),
+        "subs": float(subs_payable_total),
+        "expenses": float(other_total),
+        "grand": float(materials_total + subs_payable_total + other_total),
+
         "other_by_category": other_by_category,
         "projects_by_status": projects_by_status,
+        "top5": top5,
     }
 
 
