@@ -30,8 +30,16 @@ def create_app() -> Flask:
     # Register blueprints
     from .blueprints.pages import bp_pages
     from .blueprints.api import bp_api
+    from .blueprints.settings import bp_settings
+    from .blueprints.docs import bp_docs
+    from .blueprints.customers import bp_customers
+
+    app.register_blueprint(bp_docs)
+    app.register_blueprint(bp_customers)
     app.register_blueprint(bp_pages)
     app.register_blueprint(bp_api, url_prefix="/api")
+    app.register_blueprint(bp_settings)
+
 
     # ✅ Register Thai amount-to-text helper for Jinja
     from .utils import thai_baht_text

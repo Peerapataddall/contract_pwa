@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% set title = "เอกสารขาย" %}
+
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>เอกสารขาย</h1>
+    <div class="muted">เริ่มจากใบเสนอราคา (QT)</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-primary" href="{{ url_for('docs.qt_new') }}">+ สร้างใบเสนอราคา</a>
+  </div>
+</div>
+
+
+<div class="card" style="margin-bottom:12px;">
+  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between;">
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      {% set _types = ["QT","BL","IV","RC"] %}
+      {% for t in _types %}
+        {% set active = (doc_type == t) %}
+        <a class="btn btn-small {{ 'btn-primary' if active else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=t, status=status, q=q) }}">
+          {{ DOC_TITLE.get(t,t) }}
+        </a>
+      {% endfor %}
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px;">
+      {# status filter #}
+      {% set _st = status or "" %}
+      <a class="btn btn-small {{ 'btn-primary' if _st=='' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, q=q) }}">ทั้งหมด</a>
+      <a class="btn btn-small {{ 'btn-primary' if _st=='DRAFT' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, status='DRAFT', q=q) }}">DRAFT</a>
+      <a class="btn btn-small {{ 'btn-primary' if _st=='APPROVED' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, status='APPROVED', q=q) }}">APPROVED</a>
+      <a class="btn btn-small {{ 'btn-primary' if _st=='VOID' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, status='VOID', q=q) }}">VOID</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <form class="search" method="get" action="{{ url_for('docs.docs_list') }}">
+    <input class="input" name="q" placeholder="ค้นหาเลขเอกสาร / ลูกค้า / หัวเรื่อง" value="{{ q }}">
+    <input type="hidden" name="type" value="{{ doc_type }}">
+    <input type="hidden" name="status" value="{{ status }}">
+    <button class="btn btn-small" type="submit">ค้นหา</button>
+    <a class="btn btn-small btn-ghost" href="{{ url_for('docs.docs_list') }}">ล้าง</a>
+  </form>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:140px;">เลขเอกสาร</th>
+          <th style="width:90px;">ประเภท</th>
+          <th>ลูกค้า</th>
+          <th>หัวเรื่อง</th>
+          <th style="width:120px;">สถานะ</th>
+          <th style="width:120px;" class="right">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in docs %}
+        <tr>
+          <td class="mono"><a class="link" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">{{ d.doc_no }}</a></td>
+          <td>{{ d.doc_type }}</td>
+          <td>{{ d.customer_name }}</td>
+          <td>{{ d.subject or '-' }}</td>
+          <td>
+            {% if d.status == 'APPROVED' %}
+              <span class="pill pill-done">APPROVED</span>
+            {% else %}
+              <span class="pill pill-in_progress">DRAFT</span>
+            {% endif %}
+          </td>
+          <td class="right">
+            <a class="btn btn-small" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">ดู</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="center muted" style="padding:16px;">ยังไม่มีเอกสาร</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

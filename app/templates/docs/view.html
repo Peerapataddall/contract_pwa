@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% set title = "ดูเอกสาร" %}
+
+{% block content %}
+
+{# -----------------------------
+   ✅ คำนวณยอดใน template (กันพัง)
+   - line_total = qty*unit - line_discount
+   - subtotal = sum(line_total)
+   - discount_total = ส่วนลดท้ายบิล (doc.discount_amount)
+   - net_before_tax = subtotal - discount_total
+   - vat_amount = net_before_tax * vat_rate/100
+   - gross_total = net_before_tax + vat_amount
+   - wht_amount = net_before_tax * wht_rate/100
+   - grand_total = gross_total - wht_amount
+-------------------------------- #}
+
+{% set ns = namespace(subtotal=0) %}
+{% for it in doc.items %}
+  {% set qty = (it.qty or 0) %}
+  {% set price = (it.unit_price or 0) %}
+  {% set line_disc = (it.discount_amount or 0) %}
+  {% set line_total = (qty * price) - line_disc %}
+  {% set ns.subtotal = ns.subtotal + line_total %}
+{% endfor %}
+
+{% set subtotal = ns.subtotal %}
+{% set discount_total = (doc.discount_amount or 0) %}
+{% set net_before_tax = subtotal - discount_total %}
+
+{% set vat_rate = (doc.vat_rate or 0) %}
+{% set wht_rate = (doc.wht_rate or 0) %}
+
+{# ✅ ต้องการ: หัก ณ ที่จ่ายก่อน แล้วค่อย + VAT #}
+{% set wht_amount = (net_before_tax * wht_rate) / 100 %}
+{% set net_after_wht = net_before_tax - wht_amount %}
+{% set vat_amount = (net_after_wht * vat_rate) / 100 %}
+{% set grand_total = net_after_wht + vat_amount %}
+
+
+<div class="pagehead">
+  <div>
+    <h1>เอกสาร {{ doc.doc_no }}</h1>
+    <div class="muted">
+      {{ DOC_TITLE.get(doc.doc_type, doc.doc_type) }} • {{ doc.doc_type }} • {{ doc.status }}
+      {% if doc.parent_id %}<span class="muted">• อ้างอิง QT #{{ doc.parent_id }}</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('docs.docs_list', type=doc.doc_type) }}">กลับ</a>
+
+    {# ✅ ปุ่มดาวน์โหลด BOQ (เฉพาะหน้า View ไม่กระทบ Print) #}
+    {% if doc.doc_type == 'QT' %}
+      {% if doc.boq_excel_path %}
+        <a class="btn" href="{{ url_for('docs.doc_download_boq_excel', doc_id=doc.id) }}">ดาวน์โหลด BOQ (Excel)</a>
+      {% endif %}
+      {% if doc.boq_pdf_path %}
+        <a class="btn" href="{{ url_for('docs.doc_download_boq_pdf', doc_id=doc.id) }}">ดาวน์โหลด BOQ (PDF)</a>
+      {% endif %}
+    {% endif %}
+
+    <a class="btn" target="_blank" href="{{ url_for('docs.doc_print', doc_id=doc.id) }}">พิมพ์</a>
+
+    {% if doc.status != 'APPROVED' %}
+      <form method="post" action="{{ url_for('docs.doc_approve', doc_id=doc.id) }}" style="display:inline;">
+        <input type="hidden" name="approved_by" value="ADMIN">
+        <button class="btn btn-primary" type="submit">อนุมัติ</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+
+{# ✅ ปุ่มสร้างเอกสารลูก (เฉพาะ QT ที่ APPROVED) #}
+{% if doc.doc_type == 'QT' %}
+  <div class="card mt-12">
+    <div class="section-head">
+      <div class="section-title">เอกสารถัดไป</div>
+      <div class="muted">สร้างอัตโนมัติจากใบเสนอราคา (QT) เมื่ออนุมัติแล้ว</div>
+    </div>
+
+    {% if doc.status == 'APPROVED' %}
+      <div class="actions">
+        <form method="post" action="{{ url_for('docs.doc_create_child', doc_id=doc.id, child_type='IV') }}" style="display:inline;">
+          <button class="btn btn-primary" type="submit">+ สร้างใบกำกับภาษี (IV)</button>
+        </form>
+        <form method="post" action="{{ url_for('docs.doc_create_child', doc_id=doc.id, child_type='RC') }}" style="display:inline;">
+          <button class="btn" type="submit">+ สร้างใบเสร็จรับเงิน (RC)</button>
+        </form>
+        <form method="post" action="{{ url_for('docs.doc_create_child', doc_id=doc.id, child_type='BL') }}" style="display:inline;">
+          <button class="btn" type="submit">+ สร้างใบวางบิล/แจ้งหนี้ (BL)</button>
+        </form>
+      </div>
+    {% else %}
+      <div class="muted">* ต้องกด “อนุมัติ” ใบเสนอราคา (QT) ก่อน จึงจะสร้างเอกสารถัดไปได้</div>
+    {% endif %}
+
+    {% if children and children|length %}
+      <div class="mt-12">
+        <div class="section-title">เอกสารที่สร้างแล้ว</div>
+        <div class="table-wrap mt-8">
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width:160px;">เลขเอกสาร</th>
+                <th style="width:140px;">ประเภท</th>
+                <th style="width:140px;">สถานะ</th>
+                <th>หัวเรื่อง</th>
+                <th class="right" style="width:160px;">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ch in children %}
+              <tr>
+                <td class="mono"><a class="link" href="{{ url_for('docs.doc_view', doc_id=ch.id) }}">{{ ch.doc_no }}</a></td>
+                <td>{{ DOC_TITLE.get(ch.doc_type, ch.doc_type) }}</td>
+                <td><span class="pill">{{ ch.status }}</span></td>
+                <td>{{ ch.subject or '-' }}</td>
+                <td class="right">
+                  <a class="row-btn" href="{{ url_for('docs.doc_view', doc_id=ch.id) }}">ดู</a>
+                  <a class="row-btn" target="_blank" href="{{ url_for('docs.doc_print', doc_id=ch.id) }}">พิมพ์</a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% else %}
+      <div class="muted mt-12">ยังไม่มีเอกสารถัดไปที่ถูกสร้าง</div>
+    {% endif %}
+  </div>
+{% endif %}
+
+
+<div class="card mt-12">
+  <div class="grid grid-2">
+    <div>
+            <div class="label">ลูกค้า</div>
+      {% if doc.customer %}
+        <div class="big">{{ doc.customer.name }}</div>
+        <div class="muted">{{ doc.customer.address or '' }}</div>
+        {% if doc.customer.tax_id %}<div class="muted">เลขผู้เสียภาษี: {{ doc.customer.tax_id }}</div>{% endif %}
+        {% if doc.customer.phone %}<div class="muted">โทร: {{ doc.customer.phone }}</div>{% endif %}
+        {% if doc.customer.email %}<div class="muted">อีเมล: {{ doc.customer.email }}</div>{% endif %}
+      {% else %}
+        <div class="big">{{ doc.customer_name }}</div>
+        <div class="muted">{{ doc.customer_address or '' }}</div>
+        {% if doc.customer_tax_id %}<div class="muted">เลขผู้เสียภาษี: {{ doc.customer_tax_id }}</div>{% endif %}
+        {% if doc.customer_phone %}<div class="muted">โทร: {{ doc.customer_phone }}</div>{% endif %}
+              {% endif %}
+{% if doc.customer_email %}<div class="muted">อีเมล: {{ doc.customer_email }}</div>{% endif %}
+    </div>
+
+    <div>
+      <div class="label">หัวเรื่อง</div>
+      <div class="big">{{ doc.subject or '-' }}</div>
+      <div class="muted">VAT {{ "%.2f"|format(vat_rate) }}% • WHT {{ "%.2f"|format(wht_rate) }}%</div>
+      {% if doc.description %}<div class="pre mt-8">{{ doc.description }}</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="mt-12">
+    <div class="section-title">รายการ</div>
+    <div class="table-wrap mt-8">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>รายละเอียด</th>
+            <th class="right" style="width:120px;">จำนวน</th>
+            <th class="right" style="width:160px;">ราคาต่อหน่วย</th>
+            <th class="right" style="width:140px;">ส่วนลด</th>
+            <th class="right" style="width:160px;">รวม</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in doc.items %}
+          {% set qty = (it.qty or 0) %}
+          {% set price = (it.unit_price or 0) %}
+          {% set line_disc = (it.discount_amount or 0) %}
+          {% set line_total = (qty * price) - line_disc %}
+          <tr>
+            <td>{{ it.description }}</td>
+            <td class="right mono">{{ "%.2f"|format(qty) }}</td>
+            <td class="right mono">{{ "%.2f"|format(price) }}</td>
+            <td class="right mono">{{ "%.2f"|format(line_disc) }}</td>
+            <td class="right mono">{{ "%.2f"|format(line_total) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ✅ สรุปยอด -->
+    <div class="totals">
+      <div class="totals__row">
+        <div>ยอดรวม</div>
+        <div class="mono">{{ "%.2f"|format(subtotal) }}</div>
+      </div>
+
+      <div class="totals__row">
+        <div>ส่วนลดท้ายบิล</div>
+        <div class="mono">- {{ "%.2f"|format(discount_total) }}</div>
+      </div>
+
+      <div class="totals__row">
+        <div>ยอดก่อนภาษี (หลังส่วนลด)</div>
+        <div class="mono">{{ "%.2f"|format(net_before_tax) }}</div>
+      </div>
+
+      <div class="totals__row">
+        <div>หัก ณ ที่จ่าย ({{ "%.2f"|format(wht_rate) }}%)</div>
+        <div class="mono">- {{ "%.2f"|format(wht_amount) }}</div>
+      </div>
+
+      <div class="totals__row">
+        <div>ยอดหลังหัก ณ ที่จ่าย</div>
+        <div class="mono">{{ "%.2f"|format(net_after_wht) }}</div>
+      </div>
+
+      <div class="totals__row">
+        <div>ภาษีมูลค่าเพิ่ม VAT ({{ "%.2f"|format(vat_rate) }}%)</div>
+        <div class="mono">+ {{ "%.2f"|format(vat_amount) }}</div>
+      </div>
+
+      <div class="totals__row totals__row--grand">
+        <div>ยอดต้องชำระ</div>
+        <div class="mono">{{ "%.2f"|format(grand_total) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-12">
+    <div class="label">หมายเหตุ</div>
+    <div class="pre">{{ doc.note or '-' }}</div>
+  </div>
+
+  <div class="mt-12">
+    <div class="label">เงื่อนไขเงินประกัน</div>
+    <div class="pre">{{ doc.deposit_note or '-' }}</div>
+  </div>
+
+  <div class="mt-12">
+    <div class="label">เงื่อนไขการชำระเงิน</div>
+    <div class="pre">{{ doc.payment_terms or '-' }}</div>
+  </div>
+</div>
+
+{% endblock %}

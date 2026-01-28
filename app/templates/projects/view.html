@@ -133,6 +133,33 @@
     .only-mobile{ display:none; }
     .only-desktop{ display:block; }
   }
+
+  /* ===== ✅ BOQ Card (NEW) ===== */
+  .boqCard{
+    margin-top: 14px;
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(255,255,255,.03);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .boqToolbar{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .boqActions{
+    display:flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .boqMeta{
+    font-size: 12px;
+    opacity: .78;
+    margin-top: 6px;
+    line-height: 1.35;
+  }
 </style>
 
 <div class="card">
@@ -150,6 +177,45 @@
       <a class="btn" href="{{ url_for('pages.project_export_xlsx', pid=project.id) }}">Export Excel</a>
     </div>
   </div>
+
+  {# ==========================
+     ✅ NEW: BOQ Download Section
+     - ใช้ field ใน Project: boq_excel_path / boq_pdf_path
+     - ถ้ามี qt_doc (ส่งจาก pages.project_view) จะมีปุ่มเปิด QT เพิ่ม
+     ========================== #}
+
+  {% set has_boq_excel = (project.boq_excel_path or '')|trim %}
+  {% set has_boq_pdf = (project.boq_pdf_path or '')|trim %}
+
+  {% if has_boq_excel or has_boq_pdf or (qt_doc is defined and qt_doc) %}
+  <div class="boqCard">
+    <div class="boqToolbar">
+      <div>
+        <div class="section-title" style="font-size:16px;">BOQ / เอกสารแนบ</div>
+        <div class="boqMeta">
+          ไฟล์ BOQ จากใบเสนอราคา (QT) — ดาวน์โหลดได้จากที่นี่
+          {% if not has_boq_excel and not has_boq_pdf %}
+            <br><span class="mutedSmall">* ตอนนี้โครงการยังไม่มีไฟล์ BOQ แนบไว้</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="boqActions">
+        {% if qt_doc is defined and qt_doc %}
+          <a class="btn btn-ghost" href="{{ url_for('docs.doc_view', doc_id=qt_doc.id) }}">เปิดใบเสนอราคา (QT)</a>
+        {% endif %}
+
+        {% if has_boq_excel %}
+          <a class="btn" href="{{ url_for('pages.project_download_boq_excel', pid=project.id) }}">ดาวน์โหลด BOQ (Excel)</a>
+        {% endif %}
+
+        {% if has_boq_pdf %}
+          <a class="btn" href="{{ url_for('pages.project_download_boq_pdf', pid=project.id) }}">ดาวน์โหลด BOQ (PDF)</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="mt-12 stickyTotals">
     <div class="grid">

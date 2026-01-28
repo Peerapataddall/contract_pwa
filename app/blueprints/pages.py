@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from io import BytesIO
 
 from flask import (
     Blueprint,
+    abort,
+    current_app,
     redirect,
     render_template,
     request,
     send_file,
+    send_from_directory,
     url_for,
 )
 from sqlalchemy import func
@@ -16,7 +20,13 @@ from sqlalchemy import func
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
-from ..models import Project
+from ..models import (
+    Project,
+    SalesDoc,
+    MaterialItem,
+    SubcontractorPayment,
+    OtherExpense,
+)
 
 bp_pages = Blueprint("pages", __name__)
 
@@ -60,6 +70,19 @@ def _excel_styles(ws):
             cell.alignment = Alignment(vertical="center")
 
 
+def _boq_abs_path(rel_path: str) -> str | None:
+    """
+    rel_path like 'uploads/boq/excel/xxxx.xlsx' (stored in DB)
+    return absolute path under static or None if unsafe
+    """
+    if not rel_path:
+        return None
+    rel_path = rel_path.replace("\\", "/").lstrip("/")
+    if not rel_path.startswith("uploads/boq/"):
+        return None
+    return os.path.join(current_app.root_path, "static", rel_path)
+
+
 # ------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------
@@ -78,9 +101,7 @@ def project_list():
     query = Project.query
     if q:
         like = f"%{q}%"
-        query = query.filter(
-            (Project.code.ilike(like)) | (Project.name.ilike(like))
-        )
+        query = query.filter((Project.code.ilike(like)) | (Project.name.ilike(like)))
 
     projects = query.order_by(Project.updated_at.desc()).limit(200).all()
     return render_template("projects/list.html", projects=projects, q=q)
@@ -103,14 +124,53 @@ def project_view(pid: int):
 
     materials_total, subs_total, expenses_total, grand_total = _project_totals(project)
 
+    # ✅ ดึงเอกสาร QT ที่ผูกไว้ (ถ้ามี) เพื่อโชว์ปุ่ม BOQ + ปุ่มไปหน้า QT
+    qt_doc = None
+    try:
+        qt_doc = getattr(project, "sales_doc", None)
+    except Exception:
+        qt_doc = None
+
     return render_template(
         "projects/view.html",
         project=project,
+        qt_doc=qt_doc,
         materials_total=materials_total,
         subs_total=subs_total,
         expenses_total=expenses_total,
         grand_total=grand_total,
     )
+
+
+# ------------------------------------------------------------
+# ✅ Download BOQ from Project
+# ------------------------------------------------------------
+@bp_pages.get("/projects/<int:pid>/boq/excel")
+def project_download_boq_excel(pid: int):
+    project = Project.query.get_or_404(pid)
+
+    rel = (getattr(project, "boq_excel_path", None) or "").strip()
+    abs_path = _boq_abs_path(rel)
+    if not abs_path or not os.path.exists(abs_path):
+        abort(404)
+
+    directory = os.path.dirname(abs_path)
+    filename = os.path.basename(abs_path)
+    return send_from_directory(directory, filename, as_attachment=True)
+
+
+@bp_pages.get("/projects/<int:pid>/boq/pdf")
+def project_download_boq_pdf(pid: int):
+    project = Project.query.get_or_404(pid)
+
+    rel = (getattr(project, "boq_pdf_path", None) or "").strip()
+    abs_path = _boq_abs_path(rel)
+    if not abs_path or not os.path.exists(abs_path):
+        abort(404)
+
+    directory = os.path.dirname(abs_path)
+    filename = os.path.basename(abs_path)
+    return send_from_directory(directory, filename, as_attachment=True)
 
 
 # ------------------------------------------------------------
@@ -155,8 +215,12 @@ def vouchers_print(pid: int):
                 continue  # ignore ไม่ใช่ผู้รับเหมาช่วง
 
             item = next(
-                (s for s in (project.subcontractors or []) if int(getattr(s, "id", 0) or 0) == iid),
-                None
+                (
+                    s
+                    for s in (project.subcontractors or [])
+                    if int(getattr(s, "id", 0) or 0) == iid
+                ),
+                None,
             )
             if not item:
                 continue
@@ -166,16 +230,15 @@ def vouchers_print(pid: int):
             withholding_amount = _num(getattr(item, "withholding_amount", 0))
             net_pay = contract_amount - withholding_amount
 
-            # ส่งข้อมูลดิบครบ ๆ ให้ template ไปจัดเป็น 2 แถว (จ้างทำของ/ภาษีหักฯ)
             selected_rows.append(
                 {
                     "kind": "S_WHT",
                     "sub_id": int(getattr(item, "id", 0) or 0),
                     "vendor_name": getattr(item, "vendor_name", "") or "ผู้รับเหมา",
-                    "contract_amount": contract_amount,          # ยอดว่าจ้าง
-                    "withholding_rate": withholding_rate,        # %
-                    "withholding_amount": withholding_amount,    # หัก (บาท)
-                    "net_pay": net_pay,                          # จ่ายจริง (หลังหัก)
+                    "contract_amount": contract_amount,
+                    "withholding_rate": withholding_rate,
+                    "withholding_amount": withholding_amount,
+                    "net_pay": net_pay,
                 }
             )
             continue
@@ -184,13 +247,18 @@ def vouchers_print(pid: int):
         # โหมดเดิม: PV / RR
         # -----------------------
         if kind == "M":
-            # วัสดุ
             item = next(
-                (m for m in (project.materials or []) if int(getattr(m, "id", 0) or 0) == iid),
-                None
+                (
+                    m
+                    for m in (project.materials or [])
+                    if int(getattr(m, "id", 0) or 0) == iid
+                ),
+                None,
             )
             if item:
-                amount = _num(getattr(item, "unit_price", 0)) * _num(getattr(item, "qty", 0))
+                amount = _num(getattr(item, "unit_price", 0)) * _num(
+                    getattr(item, "qty", 0)
+                )
                 selected_rows.append(
                     {
                         "kind": "M",
@@ -202,13 +270,18 @@ def vouchers_print(pid: int):
                 )
 
         elif kind == "S":
-            # ผู้รับเหมาช่วง (โหมดเดิม: ใช้ยอด “จ่ายจริง”)
             item = next(
-                (s for s in (project.subcontractors or []) if int(getattr(s, "id", 0) or 0) == iid),
-                None
+                (
+                    s
+                    for s in (project.subcontractors or [])
+                    if int(getattr(s, "id", 0) or 0) == iid
+                ),
+                None,
             )
             if item:
-                pay = _num(getattr(item, "contract_amount", 0)) - _num(getattr(item, "withholding_amount", 0))
+                pay = _num(getattr(item, "contract_amount", 0)) - _num(
+                    getattr(item, "withholding_amount", 0)
+                )
                 selected_rows.append(
                     {
                         "kind": "S",
@@ -217,15 +290,20 @@ def vouchers_print(pid: int):
                         "ref_no": "",
                         "amount": pay,
                         "withholding_rate": _num(getattr(item, "withholding_rate", 0)),
-                        "withholding_amount": _num(getattr(item, "withholding_amount", 0)),
+                        "withholding_amount": _num(
+                            getattr(item, "withholding_amount", 0)
+                        ),
                     }
                 )
 
         elif kind == "E":
-            # ค่าใช้จ่ายอื่น
             item = next(
-                (e for e in (project.expenses or []) if int(getattr(e, "id", 0) or 0) == iid),
-                None
+                (
+                    e
+                    for e in (project.expenses or [])
+                    if int(getattr(e, "id", 0) or 0) == iid
+                ),
+                None,
             )
             if item:
                 selected_rows.append(
@@ -238,9 +316,7 @@ def vouchers_print(pid: int):
                     }
                 )
 
-    # ถ้าเป็น PV_WHT ต้องเลือกผู้รับเหมาช่วงอย่างน้อย 1 รายการ
     if doc_type == "PV_WHT" and not selected_rows:
-        # ไม่ใช้ flash เพราะไฟล์นี้ไม่ได้ import flash (คงของเดิมไว้)
         return redirect(url_for("pages.project_view", pid=project.id))
 
     return render_template(
@@ -253,7 +329,7 @@ def vouchers_print(pid: int):
 
 
 # -------------------------
-# Dashboard (Filter A)
+# Dashboard (เดิม - โครงการ)
 # -------------------------
 @bp_pages.route("/dashboard")
 def dashboard():
@@ -405,3 +481,147 @@ def dashboard_export_xlsx():
         download_name=f"dashboard_{year}_{month or 'all'}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+# ------------------------------------------------------------
+# Finance dashboards (แยก รายรับ / รายจ่าย)
+# ------------------------------------------------------------
+@bp_pages.get("/dashboard/income")
+def dashboard_income():
+    """Dashboard รายรับ (นับจากใบกำกับภาษี IV ที่สถานะ APPROVED)"""
+    today = date.today()
+    year = request.args.get("year", type=int) or today.year
+
+    q = (
+        SalesDoc.query.filter(SalesDoc.doc_type == "IV")
+        .filter(SalesDoc.status == "APPROVED")
+        .filter(SalesDoc.issue_date.isnot(None))
+    )
+
+    docs = q.all()
+
+    month_totals = {m: 0.0 for m in range(1, 13)}
+    month_count = {m: 0 for m in range(1, 13)}
+
+    total_income = 0.0
+    total_vat = 0.0
+    total_wht = 0.0
+    total_net = 0.0
+
+    for d in docs:
+        try:
+            if not d.issue_date or int(d.issue_date.year) != int(year):
+                continue
+            m = int(d.issue_date.month)
+        except Exception:
+            continue
+
+        gross = _num(getattr(d, "gross_total", 0))
+        vat = _num(getattr(d, "vat_amount", 0))
+        wht = _num(getattr(d, "wht_amount", 0))
+        net_pay = _num(getattr(d, "grand_total", 0))
+
+        month_totals[m] += gross
+        month_count[m] += 1
+
+        total_income += gross
+        total_vat += vat
+        total_wht += wht
+        total_net += net_pay
+
+    labels = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    series = [round(month_totals[m], 2) for m in range(1, 13)]
+    counts = [month_count[m] for m in range(1, 13)]
+    years = list(range(today.year - 5, today.year + 2))
+
+    return render_template(
+        "dashboard_income.html",
+        year=year,
+        years=years,
+        labels=labels,
+        series=series,
+        counts=counts,
+        total_income=round(total_income, 2),
+        total_vat=round(total_vat, 2),
+        total_wht=round(total_wht, 2),
+        total_net=round(total_net, 2),
+    )
+
+
+@bp_pages.get("/dashboard/expense")
+def dashboard_expense():
+    """Dashboard รายจ่าย (รวม 3 ส่วน: วัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่นๆ)
+    ใช้ created_at ของรายการเป็นตัวอ้างอิงเดือน/ปี (TimestampMixin)
+    """
+    today = date.today()
+    year = request.args.get("year", type=int) or today.year
+
+    mats = MaterialItem.query.all()
+    subs = SubcontractorPayment.query.all()
+    oth = OtherExpense.query.all()
+
+    month_totals = {m: 0.0 for m in range(1, 13)}
+    month_count = {m: 0 for m in range(1, 13)}
+
+    total_materials = 0.0
+    total_subs = 0.0
+    total_other = 0.0
+    total_expense = 0.0
+
+    def _acc(dt, amount):
+        nonlocal total_expense
+        try:
+            if not dt or int(dt.year) != int(year):
+                return
+            m = int(dt.month)
+        except Exception:
+            return
+        amt = _num(amount)
+        month_totals[m] += amt
+        month_count[m] += 1
+        total_expense += amt
+
+    for it in mats:
+        dt = getattr(it, "created_at", None)
+        amt = _num(getattr(it, "unit_price", 0)) * _num(getattr(it, "qty", 0))
+        if dt and int(dt.year) == int(year):
+            total_materials += amt
+        _acc(dt, amt)
+
+    for it in subs:
+        dt = getattr(it, "created_at", None)
+        amt = _num(getattr(it, "contract_amount", 0))
+        if dt and int(dt.year) == int(year):
+            total_subs += amt
+        _acc(dt, amt)
+
+    for it in oth:
+        dt = getattr(it, "created_at", None)
+        amt = _num(getattr(it, "amount", 0))
+        if dt and int(dt.year) == int(year):
+            total_other += amt
+        _acc(dt, amt)
+
+    labels = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    series = [round(month_totals[m], 2) for m in range(1, 13)]
+    counts = [month_count[m] for m in range(1, 13)]
+    years = list(range(today.year - 5, today.year + 2))
+
+    return render_template(
+        "dashboard_expense.html",
+        year=year,
+        years=years,
+        labels=labels,
+        series=series,
+        counts=counts,
+        total_expense=round(total_expense, 2),
+        total_materials=round(total_materials, 2),
+        total_subs=round(total_subs, 2),
+        total_other=round(total_other, 2),
+    )
+
+
+# เผื่อคนเข้า url เก่า
+@bp_pages.get("/dashboard/finance")
+def dashboard_finance_redirect():
+    return redirect(url_for("pages.dashboard_income"))

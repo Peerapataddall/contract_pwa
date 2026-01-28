@@ -29,13 +29,50 @@
       <span class="tab__icon">📁</span>
       <span class="tab__label">โครงการ</span>
     </a>
-    <a class="tab {{ 'is-active' if request.path.startswith('/dashboard') else '' }}" href="{{ url_for('pages.dashboard') }}">
+
+    <a class="tab {{ 'is-active' if request.path == '/dashboard' else '' }}" href="{{ url_for('pages.dashboard') }}">
       <span class="tab__icon">📊</span>
       <span class="tab__label">สรุป</span>
+    </a>
+    <a class="tab {{ 'is-active' if request.path.startswith('/dashboard/income') else '' }}" href="{{ url_for('pages.dashboard_income') }}">
+      <span class="tab__icon">💰</span>
+      <span class="tab__label">สรุปรายรับ</span>
+    </a>
+
+    <a class="tab {{ 'is-active' if request.path.startswith('/dashboard/expense') else '' }}" href="{{ url_for('pages.dashboard_expense') }}">
+      <span class="tab__icon">💸</span>
+      <span class="tab__label">สรุปรายจ่าย</span>
+    </a>
+
+    <a class="tab {{ 'is-active' if request.path.startswith('/docs') else '' }}" href="{{ url_for('docs.docs_list') }}">
+      <span class="tab__icon">🧾</span>
+      <span class="tab__label">เอกสารขาย</span>
+    </a>
+
+
+    <a class="tab {{ 'is-active' if request.path.startswith('/customers') else '' }}" href="{{ url_for('customers.customers_list') }}">
+      <span class="tab__icon">👥</span>
+      <span class="tab__label">ลูกค้า</span>
+    </a>
+
+    <a class="tab {{ 'is-active' if request.path.startswith('/settings/company') else '' }}" href="{{ url_for('settings.company_settings') }}">
+      <span class="tab__icon">🏢</span>
+      <span class="tab__label">ตั้งค่าบริษัท</span>
     </a>
   </nav>
 
   <main class="container">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div style="margin: 12px 0; display:flex; flex-direction:column; gap:8px;">
+          {% for cat, msg in messages %}
+            <div class="alert alert--{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
   </main>
 

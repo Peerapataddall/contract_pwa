@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% set title = "สรุปรายรับ (IV)" %}
+
+{% block head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Dashboard รายรับ</h1>
+    <div class="muted">รายรับนับจากใบกำกับภาษี (IV) ที่สถานะ APPROVED</div>
+  </div>
+  <div class="actions">
+    <form method="get" action="{{ url_for('pages.dashboard_income') }}" style="display:flex; gap:8px; align-items:center;">
+      <select class="input" name="year" style="width:120px;">
+        {% for y in years %}
+          <option value="{{ y }}" {{ 'selected' if y==year else '' }}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit">ดู</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid2" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+  <div class="card">
+    <div class="muted" style="font-weight:700;">รายรับรวม (Gross)</div>
+    <div style="font-size:24px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_income) }}</div>
+    <div class="muted" style="margin-top:6px;">ปี {{ year }}</div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:140px;">
+        <div class="muted" style="font-weight:700;">VAT รวม</div>
+        <div style="font-size:18px; font-weight:900;" class="mono">{{ "{:,.2f}".format(total_vat) }}</div>
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <div class="muted" style="font-weight:700;">WHT รวม</div>
+        <div style="font-size:18px; font-weight:900;" class="mono">{{ "{:,.2f}".format(total_wht) }}</div>
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <div class="muted" style="font-weight:700;">ยอดชำระ (Net)</div>
+        <div style="font-size:18px; font-weight:900;" class="mono">{{ "{:,.2f}".format(total_net) }}</div>
+      </div>
+    </div>
+    <div class="muted" style="margin-top:8px;">* Gross = รวม VAT, Net = หลังหัก WHT</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px;">
+  <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-end;">
+    <div>
+      <h2 style="margin:0;">รายรับรายเดือน</h2>
+      <div class="muted">กราฟรายรับจาก IV (APPROVED) แยกตามเดือน</div>
+    </div>
+    <div class="muted mono">เอกสาร/เดือน: {{ counts|sum }}</div>
+  </div>
+  <div style="margin-top:10px;">
+    <canvas id="incomeChart" height="90"></canvas>
+  </div>
+</div>
+
+<script>
+  const labels = {{ labels|tojson }};
+  const series = {{ series|tojson }};
+  const counts = {{ counts|tojson }};
+
+  const ctx = document.getElementById('incomeChart');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'รายรับ (Gross)',
+        data: series,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        tooltip: {
+          callbacks: {
+            afterBody: (items) => {
+              const i = items?.[0]?.dataIndex ?? 0;
+              return 'จำนวนเอกสาร: ' + (counts[i] ?? 0);
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          ticks: {
+            callback: (v) => {
+              try { return Number(v).toLocaleString(); } catch(e){ return v; }
+            }
+          }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ doc.doc_no }} - ใบกำกับภาษี</title>
+
+  <style>
+    /* ===== A4 Print ===== */
+    @page { size: A4 portrait; margin: 12mm; }
+    html, body { background:#fff; color:#111; }
+    body{
+      margin:0;
+      font-family: Tahoma, "Sarabun", "TH Sarabun New", Arial, sans-serif;
+      font-size:12px;
+      line-height:1.35;
+    }
+
+    .sheet{ width: 100%; }
+
+    /* ===== Header ===== */
+    .head{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:10px;
+    }
+    .brand{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      min-width: 55%;
+    }
+    .logo{
+      width:140px;
+      height:auto;
+      object-fit:contain;
+    }
+    .co-name{ font-weight:800; font-size:13px; margin-bottom:2px; }
+    .muted{ color:#333; }
+
+    .docbox{
+      text-align:left;
+      min-width: 260px;
+    }
+    .doc-title{
+      font-weight:800;
+      font-size:16px;
+      text-align:center;
+      margin-bottom:4px;
+    }
+    .doc-subtitle{
+      text-align:center;
+      font-size:11px;
+      margin-bottom:10px;
+    }
+    .kv{
+      width:100%;
+      border-collapse:collapse;
+    }
+    .kv td{
+      padding:2px 0;
+      vertical-align:top;
+    }
+    .kv td.k{ width:90px; color:#222; }
+    .kv td.v{ text-align:right; font-weight:700; }
+
+    /* ===== Customer block ===== */
+    .row2{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      margin: 6px 0 10px;
+    }
+    .box{
+      flex:1;
+      border-top:1px solid #111;
+      padding-top:8px;
+    }
+    .box h3{
+      margin:0 0 4px 0;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    /* ===== Items table ===== */
+    table.items{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:10px;
+      border:1px solid #111;
+    }
+    .items th, .items td{
+      border:1px solid #111;
+      padding:6px 6px;
+      vertical-align:top;
+    }
+    .items th{
+      background:#fff;
+      font-weight:800;
+      text-align:center;
+    }
+    .right{ text-align:right; }
+    .center{ text-align:center; }
+    .mono{
+      font-variant-numeric: tabular-nums;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    /* ===== Totals area (like sample: totals on right inside table) ===== */
+    .totals-wrap{
+      display:flex;
+      gap:12px;
+      align-items:stretch;
+      border-left:1px solid #111;
+    }
+
+    /* Footer blocks */
+    .footer{
+      margin-top:10px;
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+    }
+    .note{
+      flex:1;
+      font-size:11px;
+      white-space:pre-wrap;
+    }
+    .payinfo{
+      flex:1;
+      font-size:11px;
+      white-space:pre-wrap;
+    }
+
+    .sign{
+      margin-top:18px;
+      display:flex;
+      justify-content:flex-end;
+      gap:40px;
+      font-size:11px;
+    }
+    .sign .sigbox{
+      width:220px;
+      text-align:center;
+    }
+    .line{
+      border-bottom:1px solid #111;
+      height:22px;
+      margin-bottom:6px;
+    }
+
+    /* Hide everything except sheet when printing */
+    @media print{
+      .noprint{ display:none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="sheet">
+
+    <!-- ===== Header ===== -->
+    <div class="head">
+      <div class="brand">
+        {% if company and company.logo_path %}
+          <img class="logo" src="{{ url_for('static', filename=company.logo_path) }}" alt="logo">
+        {% elif doc.company_logo_path %}
+          <img class="logo" src="{{ url_for('static', filename=doc.company_logo_path) }}" alt="logo">
+        {% endif %}
+
+        <div>
+          <div class="co-name">{{ (company.company_name if company and company.company_name else doc.company_name) or "" }}</div>
+          <div class="muted">
+            {{ (company.address if company and company.address else doc.company_address) or "" }}<br>
+            {% if (company.tax_id if company else doc.company_tax_id) %}เลขประจำตัวผู้เสียภาษี {{ (company.tax_id if company else doc.company_tax_id) }}<br>{% endif %}
+            {% if (company.phone if company else doc.company_phone) %}โทร. {{ (company.phone if company else doc.company_phone) }}{% endif %}
+            {% if (company.email if company else doc.company_email) %} &nbsp; E-mail : {{ (company.email if company else doc.company_email) }}{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="docbox">
+        <div class="doc-title">ใบกำกับภาษี</div>
+        <div class="doc-subtitle">ต้นฉบับ</div>
+
+        <table class="kv">
+          <tr><td class="k">เลขที่</td><td class="v mono">{{ doc.doc_no }}</td></tr>
+          <tr><td class="k">วันที่</td><td class="v mono">{{ doc.issue_date.strftime("%d/%m/%Y") if doc.issue_date else "" }}</td></tr>
+          {% if doc.due_date %}
+          <tr><td class="k">ครบกำหนด</td><td class="v mono">{{ doc.due_date.strftime("%d/%m/%Y") }}</td></tr>
+          {% endif %}
+          {% if doc.parent_id %}
+          <tr><td class="k">อ้างอิง</td><td class="v mono">{{ doc.parent_id }}</td></tr>
+          {% endif %}
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== Customer ===== -->
+    <div class="row2">
+      <div class="box">
+        <h3>ลูกค้า</h3>
+        <div><b>{{ doc.customer_name }}</b></div>
+        <div>{{ doc.customer_address or "" }}</div>
+        {% if doc.customer_tax_id %}<div>เลขประจำตัวผู้เสียภาษี {{ doc.customer_tax_id }}</div>{% endif %}
+        {% if doc.customer_phone %}<div>โทร: {{ doc.customer_phone }}</div>{% endif %}
+        {% if doc.customer_email %}<div>อีเมล: {{ doc.customer_email }}</div>{% endif %}
+      </div>
+
+      <div class="box">
+        <h3>เรื่องงาน</h3>
+        <div><b>{{ doc.subject or "-" }}</b></div>
+        {% if doc.description %}<div class="muted">{{ doc.description }}</div>{% endif %}
+      </div>
+    </div>
+
+    <!-- ===== Items Table ===== -->
+    <table class="items">
+      <thead>
+        <tr>
+          <th style="width:50px;">ลำดับ</th>
+          <th>รายละเอียด</th>
+          <th style="width:90px;">จำนวน</th>
+          <th style="width:120px;">ราคาต่อหน่วย</th>
+          <th style="width:120px;">ยอดรวม</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for it in doc.items %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td>{{ it.description }}</td>
+          <td class="center mono">{{ "%.2f"|format(it.qty) }}</td>
+          <td class="right mono">{{ "%.2f"|format(it.unit_price) }}</td>
+          <td class="right mono">{{ "%.2f"|format((it.qty * it.unit_price) - (it.discount_amount or 0)) }}</td>
+        </tr>
+        {% endfor %}
+
+        <!-- Totals block (right aligned like sample) -->
+        <tr>
+          <td colspan="3" style="border-right:0;"></td>
+          <td colspan="2" style="padding:0; border-left:1px solid #111;">
+            <table style="width:100%; border-collapse:collapse;">
+              <tr>
+                <td style="padding:6px; border-bottom:1px solid #111;">รวมเป็นเงิน</td>
+                <td class="right mono" style="padding:6px; border-bottom:1px solid #111;">{{ "%.2f"|format(doc.net_before_tax) }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px; border-bottom:1px solid #111;">ภาษีมูลค่าเพิ่ม {{ doc.vat_rate }}%</td>
+                <td class="right mono" style="padding:6px; border-bottom:1px solid #111;">{{ "%.2f"|format(doc.vat_amount) }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px; border-bottom:1px solid #111;"><b>จำนวนเงินรวมทั้งสิ้น</b></td>
+                <td class="right mono" style="padding:6px; border-bottom:1px solid #111;"><b>{{ "%.2f"|format(doc.gross_total) }}</b></td>
+              </tr>
+              <tr>
+                <td style="padding:6px; border-bottom:1px solid #111;">หักภาษี ณ ที่จ่าย {{ doc.wht_rate }}%</td>
+                <td class="right mono" style="padding:6px; border-bottom:1px solid #111;">{{ "%.2f"|format(doc.wht_amount) }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px;"><b>ยอดชำระ</b></td>
+                <td class="right mono" style="padding:6px;"><b>{{ "%.2f"|format(doc.grand_total) }}</b></td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ===== Footer (ไม่มีเงื่อนไข) ===== -->
+    <div class="footer">
+      <div class="note">
+        <b>หมายเหตุ</b><br>
+        {{ doc.note or "-" }}
+      </div>
+
+      <div class="payinfo">
+        {% if company and (company.bank_name or company.bank_account_name or company.bank_account_no) %}
+          <b>การชำระเงิน</b><br>
+          {% if company.bank_account_name %}เจ้าของบัญชี: {{ company.bank_account_name }}<br>{% endif %}
+          {% if company.bank_name %}ธนาคาร: {{ company.bank_name }}<br>{% endif %}
+          {% if company.bank_branch %}สาขา: {{ company.bank_branch }}<br>{% endif %}
+          {% if company.bank_account_no %}เลขที่บัญชี: {{ company.bank_account_no }}<br>{% endif %}
+        {% else %}
+          <b>การชำระเงิน</b><br>
+          (ยังไม่ได้ตั้งค่าข้อมูลบัญชีใน “ตั้งค่าบริษัท”)
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ===== Sign ===== -->
+    <div class="sign">
+      <div class="sigbox">
+        <div class="line"></div>
+        ผู้รับเงิน<br>
+        วันที่ ____/____/____
+      </div>
+      <div class="sigbox">
+        <div class="line"></div>
+        ผู้จ่ายเงิน<br>
+        วันที่ ____/____/____
+      </div>
+    </div>
+
+    <div class="noprint" style="margin-top:14px;">
+      <button onclick="window.print()" class="btn btn-primary">พิมพ์</button>
+      <button onclick="history.back()" class="btn">กลับ</button>
+    </div>
+
+  </div>
+</body>
+</html>

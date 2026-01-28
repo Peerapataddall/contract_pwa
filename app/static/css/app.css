@@ -74,6 +74,21 @@ h1{margin:0;font-size:22px}
   padding:14px;
 }
 
+/* ===== New: card header (ใช้กับหน้า settings/company.html) ===== */
+.card__header{
+  margin-bottom:12px;
+}
+.card__header h2{
+  margin:0;
+  font-size:18px;
+  font-weight:900;
+  letter-spacing:.2px;
+}
+.card__header p{
+  margin:6px 0 0;
+}
+
+/* ===== Grid ===== */
 .grid{display:grid;gap:12px}
 .grid-2{grid-template-columns:1fr}
 .grid-3{grid-template-columns:1fr}
@@ -103,6 +118,40 @@ h1{margin:0;font-size:22px}
 }
 .input:focus{border-color: rgba(59,130,246,.6); box-shadow: 0 0 0 3px rgba(59,130,246,.18)}
 
+/* ===== New: form field wrappers (ใช้กับหน้า settings/company.html) ===== */
+.form{margin:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.field > span{font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.2px}
+.field input,
+.field textarea,
+.field select{
+  width:100%;
+  padding:12px 12px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background: rgba(0,0,0,.18);
+  color: var(--text);
+  outline:none;
+  font-size:16px;
+}
+.field textarea{resize:vertical;min-height:88px;line-height:1.4}
+.field input:focus,
+.field textarea:focus,
+.field select:focus{
+  border-color: rgba(59,130,246,.6);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+}
+.field input[type="file"]{
+  padding:10px 10px;
+  cursor:pointer;
+}
+
+/* ให้ placeholder ไม่จางเกินไป */
+input::placeholder, textarea::placeholder{
+  color: rgba(231,238,252,.55);
+}
+
+/* ===== Buttons ===== */
 .btn{
   padding:12px 12px;
   border-radius:14px;
@@ -119,9 +168,11 @@ h1{margin:0;font-size:22px}
 .btn-ghost{background: transparent}
 .btn-small{padding:10px 10px;font-size:14px;border-radius:12px}
 
+/* ===== Search ===== */
 .search{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 .search .input{flex:1;min-width:220px}
 
+/* ===== Tables ===== */
 .table-wrap{overflow:auto;border-radius:14px;border:1px solid var(--line)}
 .table{width:100%;border-collapse:collapse;background: rgba(0,0,0,.14)}
 .table th,.table td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.08);vertical-align:top}
@@ -131,20 +182,38 @@ h1{margin:0;font-size:22px}
 .center{text-align:center}
 .link{font-weight:800;text-decoration:underline;text-decoration-color:rgba(255,255,255,.28);text-underline-offset:3px}
 
+/* ===== Sections / spacing ===== */
 .section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
 .section-title{font-weight:900;font-size:16px}
 .mt-8{margin-top:8px}
 .mt-12{margin-top:12px}
 
+/* ===== Totals ===== */
 .totals{margin-top:10px;border-top:1px dashed rgba(255,255,255,.14);padding-top:10px}
 .totals__row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:900}
 
+/* ===== Pills ===== */
 .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;font-weight:900}
 .pill-in_progress{background: rgba(59,130,246,.12);border-color: rgba(59,130,246,.35)}
 .pill-defect{background: rgba(245,158,11,.12);border-color: rgba(245,158,11,.35)}
 .pill-done{background: rgba(34,197,94,.12);border-color: rgba(34,197,94,.35)}
 
+/* ===== Row actions ===== */
 .row-actions{display:flex;gap:6px;justify-content:flex-end}
 .row-btn{padding:8px 10px;border-radius:12px;border:1px solid var(--line);background: rgba(255,255,255,.06);cursor:pointer}
 
+/* ===== Bars ===== */
 .bar-row{display:flex;align-items:center;justify-content:space-between;padding:10px;border:1px solid rgba(255,255,255,.10);border-radius:14px;background: rgba(255,255,255,.03);margin-bottom:8px}
+
+/* ===== New: Alerts (ใช้กับ flash message ใน base.html) ===== */
+.alert{
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 10px 26px rgba(0,0,0,.22);
+  font-weight: 800;
+}
+.alert--success{border-color: rgba(34,197,94,.35)}
+.alert--error{border-color: rgba(239,68,68,.35)}
+.alert--info{border-color: rgba(59,130,246,.35)}

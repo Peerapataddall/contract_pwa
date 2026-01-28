@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% set title = "ตั้งค่าบริษัท" %}
+
+{% block content %}
+<div class="card">
+  <div class="card__header">
+    <h2 style="margin:0;">ตั้งค่าบริษัท</h2>
+    <p class="muted" style="margin:6px 0 0;">ข้อมูลนี้จะถูกใช้ในเอกสาร (ใบเสนอราคา/ใบวางบิล/ใบกำกับ/ใบเสร็จ)</p>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="form">
+    <div class="grid">
+      <label class="field">
+        <span>ชื่อบริษัท</span>
+        <input name="company_name" value="{{ profile.company_name or '' }}" required>
+      </label>
+
+      <label class="field">
+        <span>เลขประจำตัวผู้เสียภาษี</span>
+        <input name="tax_id" value="{{ profile.tax_id or '' }}">
+      </label>
+
+      <label class="field">
+        <span>โทรศัพท์</span>
+        <input name="phone" value="{{ profile.phone or '' }}">
+      </label>
+
+      <label class="field">
+        <span>อีเมล</span>
+        <input name="email" value="{{ profile.email or '' }}">
+      </label>
+
+      <label class="field">
+        <span>เว็บไซต์</span>
+        <input name="website" value="{{ profile.website or '' }}">
+      </label>
+
+      <label class="field" style="grid-column:1/-1;">
+        <span>ที่อยู่</span>
+        <textarea name="address" rows="3">{{ profile.address or '' }}</textarea>
+      </label>
+
+      <div class="hr" style="grid-column:1/-1; margin:8px 0;"></div>
+
+      <div style="grid-column:1/-1;">
+        <h3 style="margin:0 0 6px 0;">ข้อมูลการชำระเงิน (แสดงเฉพาะตอนพิมพ์ใบเสนอราคา QT)</h3>
+        <p class="muted" style="margin:0 0 10px 0;">กรอกข้อมูลบัญชีเพื่อให้แสดงในเอกสารใบเสนอราคาเวลาปริ้น</p>
+      </div>
+
+      <label class="field">
+        <span>ธนาคาร</span>
+        <input name="payment_bank" value="{{ profile.payment_bank or '' }}" placeholder="เช่น กสิกรไทย / ไทยพาณิชย์">
+      </label>
+
+      <label class="field">
+        <span>เลขบัญชี</span>
+        <input name="payment_account_no" value="{{ profile.payment_account_no or '' }}" placeholder="เช่น 123-4-56789-0">
+      </label>
+
+      <label class="field">
+        <span>ชื่อบัญชี</span>
+        <input name="payment_account_name" value="{{ profile.payment_account_name or '' }}" placeholder="ชื่อบัญชี">
+      </label>
+
+      <label class="field">
+        <span>สาขา</span>
+        <input name="payment_branch" value="{{ profile.payment_branch or '' }}" placeholder="สาขา">
+      </label>
+
+
+      <label class="field" style="grid-column:1/-1;">
+        <span>โลโก้บริษัท (png/jpg/webp)</span>
+        <input type="file" name="logo" accept=".png,.jpg,.jpeg,.webp">
+        {% if profile.logo_path %}
+          <div style="margin-top:10px; display:flex; gap:12px; align-items:center;">
+            <img src="{{ url_for('static', filename=profile.logo_path) }}" alt="logo" style="height:54px; border-radius:10px; background:#fff; padding:6px;">
+            <span class="muted">{{ profile.logo_path }}</span>
+          </div>
+        {% endif %}
+      </label>
+    </div>
+
+    <div style="margin-top:14px; display:flex; gap:10px;">
+      <button class="btn" type="submit">บันทึก</button>
+      <a class="btn btn--ghost" href="{{ url_for('pages.project_list') }}">กลับหน้าโครงการ</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

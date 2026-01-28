@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from .. import db
-from ..models import MaterialItem, OtherExpense, Project, SubcontractorPayment
+from ..models import Customer, MaterialItem, OtherExpense, Project, SubcontractorPayment
 
 bp_api = Blueprint("api", __name__)
 
@@ -206,3 +206,52 @@ def _apply_project_payload(p: Project, payload: dict) -> None:
         raise ValueError("code is required")
     if not p.name:
         raise ValueError("name is required")
+
+
+# -------------------------
+# Customers API (autocomplete)
+# -------------------------
+@bp_api.get("/customers/search")
+def customers_search():
+    q = (request.args.get("q") or "").strip()
+    limit = min(int(request.args.get("limit") or 10), 50)
+    if not q:
+        return jsonify([])
+
+    items = (
+        Customer.query
+        .filter(Customer.is_active.is_(True))
+        .filter(Customer.name.ilike(f"%{q}%"))
+        .order_by(Customer.name.asc())
+        .limit(limit)
+        .all()
+    )
+    return jsonify([
+        {
+            "id": c.id,
+            "name": c.name,
+            "tax_id": c.tax_id,
+            "phone": c.phone,
+            "email": c.email,
+            "address": c.address,
+        }
+        for c in items
+    ])
+
+
+@bp_api.get("/customers/<int:customer_id>")
+def customer_get(customer_id: int):
+    c = Customer.query.get_or_404(customer_id)
+    return jsonify(
+        {
+            "id": c.id,
+            "name": c.name,
+            "tax_id": c.tax_id,
+            "phone": c.phone,
+            "email": c.email,
+            "address": c.address,
+            "contact_name": c.contact_name,
+            "note": c.note,
+            "is_active": c.is_active,
+        }
+    )

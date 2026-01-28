@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% set title = "ลูกค้า" %}
+
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>{{ "แก้ไขลูกค้า" if customer else "เพิ่มลูกค้า" }}</h1>
+    <div class="muted">ข้อมูลนี้จะถูกใช้ตอนเลือกในใบเสนอราคา (QT)</div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-ghost" href="{{ url_for('customers.customers_list') }}">กลับ</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="post" class="grid grid-2">
+    <label class="field" style="grid-column:1/-1;">
+      <span>ชื่อลูกค้า *</span>
+      <input name="name" class="input" required value="{{ customer.name if customer else '' }}">
+    </label>
+
+    <label class="field">
+      <span>โทร</span>
+      <input name="phone" class="input" value="{{ customer.phone if customer else '' }}">
+    </label>
+
+    <label class="field">
+      <span>อีเมล</span>
+      <input name="email" class="input" value="{{ customer.email if customer else '' }}">
+    </label>
+
+    <label class="field">
+      <span>เลขผู้เสียภาษี</span>
+      <input name="tax_id" class="input" value="{{ customer.tax_id if customer else '' }}">
+    </label>
+
+    <label class="field">
+      <span>ผู้ติดต่อ</span>
+      <input name="contact_name" class="input" value="{{ customer.contact_name if customer else '' }}">
+    </label>
+
+    <label class="field" style="grid-column:1/-1;">
+      <span>ที่อยู่</span>
+      <textarea name="address" rows="3">{{ customer.address if customer else '' }}</textarea>
+    </label>
+
+    <label class="field" style="grid-column:1/-1;">
+      <span>หมายเหตุ</span>
+      <textarea name="note" rows="2">{{ customer.note if customer else '' }}</textarea>
+    </label>
+
+    {% if customer %}
+    <label class="field" style="grid-column:1/-1;">
+      <span>สถานะ</span>
+      <select name="is_active" class="input">
+        <option value="1" {{ 'selected' if customer.is_active else '' }}>ACTIVE</option>
+        <option value="0" {{ 'selected' if not customer.is_active else '' }}>INACTIVE</option>
+      </select>
+    </label>
+    {% endif %}
+
+    <div style="grid-column:1/-1; display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+      <button class="btn btn-primary" type="submit">บันทึก</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

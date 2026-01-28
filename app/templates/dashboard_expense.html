@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% set title = "สรุปรายจ่าย" %}
+
+{% block head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Dashboard รายจ่าย</h1>
+    <div class="muted">รวม 3 ส่วน: วัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่นๆ (อ้างอิงวันที่บันทึกในระบบ)</div>
+  </div>
+  <div class="actions">
+    <form method="get" action="{{ url_for('pages.dashboard_expense') }}" style="display:flex; gap:8px; align-items:center;">
+      <select class="input" name="year" style="width:120px;">
+        {% for y in years %}
+          <option value="{{ y }}" {{ 'selected' if y==year else '' }}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit">ดู</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:14px;">
+  <div class="card" style="grid-column: span 6;">
+    <div class="card__body">
+      <div class="muted">รายจ่ายรวม</div>
+      <div class="kpi">{{ "{:,.2f}".format(total_expense) }}</div>
+      <div class="muted">ปี {{ year }}</div>
+    </div>
+  </div>
+
+  <div class="card" style="grid-column: span 6;">
+    <div class="card__body" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+      <div>
+        <div class="muted">วัสดุ</div>
+        <div class="kpi-sm">{{ "{:,.2f}".format(total_materials) }}</div>
+      </div>
+      <div>
+        <div class="muted">ผู้รับเหมาช่วง</div>
+        <div class="kpi-sm">{{ "{:,.2f}".format(total_subs) }}</div>
+      </div>
+      <div>
+        <div class="muted">ค่าใช้จ่ายอื่น</div>
+        <div class="kpi-sm">{{ "{:,.2f}".format(total_other) }}</div>
+      </div>
+      <div class="muted" style="grid-column: 1/-1;">* แยกตามประเภทรายการ (อาจมีการบันทึกย้อนหลังได้)</div>
+    </div>
+  </div>
+
+  <div class="card" style="grid-column: span 12;">
+    <div class="card__body">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">รายจ่ายรายเดือน</h2>
+          <div class="muted">กราฟรายจ่ายรวม (วัสดุ+ผู้รับเหมาช่วง+อื่นๆ) แยกตามเดือน</div>
+        </div>
+        <div class="muted">รายการ/เดือน: {{ counts | sum }}</div>
+      </div>
+      <div style="height:360px; margin-top:10px;">
+        <canvas id="expenseChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const labels = {{ labels | tojson }};
+  const series = {{ series | tojson }};
+
+  const ctx = document.getElementById("expenseChart");
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "รายจ่ายรวม",
+        data: series,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true }
+      },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+</script>
+{% endblock %}
