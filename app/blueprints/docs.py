@@ -472,3 +472,200 @@ def doc_download_boq_pdf(doc_id: int):
     directory = os.path.dirname(abs_path)
     filename = os.path.basename(abs_path)
     return send_from_directory(directory, filename, as_attachment=True)
+
+
+@bp_docs.get("/docs/<int:doc_id>/edit")
+def doc_edit(doc_id):
+    doc = SalesDoc.query.options(joinedload(SalesDoc.customer)).get_or_404(doc_id)
+
+    # อนุญาตแก้ไขเฉพาะ DRAFT
+    if (doc.status or "").upper() != "DRAFT":
+        flash("เอกสารสถานะนี้ไม่สามารถแก้ไขได้ (อนุญาตเฉพาะ DRAFT)", "warning")
+        return redirect(url_for("docs.doc_view", doc_id=doc.id))
+
+    # เตรียม items ให้มีอย่างน้อย 1 แถว
+    items = []
+    for it in (doc.items or []):
+        items.append(
+            {
+                "description": it.description or "",
+                "qty": str(it.qty or "1"),
+                "unit_price": str(it.unit_price or "0"),
+                "discount_amount": str(it.discount_amount or "0"),
+            }
+        )
+    if not items:
+        items = [{"description": "", "qty": "1", "unit_price": "0", "discount_amount": "0"}]
+
+    return render_template("docs/edit.html", doc=doc, items=items, DOC_TITLE=DOC_TITLE)
+
+
+@bp_docs.post("/docs/<int:doc_id>/edit")
+def doc_edit_save(doc_id):
+    doc = SalesDoc.query.options(joinedload(SalesDoc.customer)).get_or_404(doc_id)
+
+    # อนุญาตแก้ไขเฉพาะ DRAFT
+    if (doc.status or "").upper() != "DRAFT":
+        flash("เอกสารสถานะนี้ไม่สามารถแก้ไขได้", "warning")
+        return redirect(url_for("docs.doc_view", doc_id=doc.id))
+
+    f = request.form
+
+    # -----------------------------
+    # helper แปลงตัวเลข
+    # -----------------------------
+    def to_decimal_like(x):
+        try:
+            s = (x or "").strip().replace(",", "")
+            return Decimal(s) if s else Decimal("0")
+        except Exception:
+            return Decimal("0")
+
+    def to_float(x):
+        try:
+            s = (x or "").strip().replace(",", "")
+            return float(s) if s else 0.0
+        except Exception:
+            return 0.0
+
+    def to_int(x):
+        try:
+            s = (x or "").strip()
+            return int(s) if s else 0
+        except Exception:
+            return 0
+
+    def parse_date_yyyy_mm_dd(x):
+        try:
+            s = (x or "").strip()
+            if not s:
+                return None
+            # รองรับ input type="date" -> YYYY-MM-DD
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    def parse_date_dd_mm_yyyy(x):
+        try:
+            s = (x or "").strip()
+            if not s:
+                return None
+            # เผื่อฟอร์มส่งมาเป็น DD/MM/YYYY
+            return datetime.strptime(s, "%d/%m/%Y").date()
+        except Exception:
+            return None
+
+    # -----------------------------
+    # ลูกค้า: รองรับการเลือกใหม่ (customer_id) หรือพิมพ์ชื่อเอง
+    # -----------------------------
+    customer_id_raw = (f.get("customer_id") or "").strip()
+    customer_name_raw = (f.get("customer_name") or "").strip()
+
+    if customer_id_raw.isdigit():
+        customer = Customer.query.get(int(customer_id_raw))
+        if customer:
+            doc.customer_id = customer.id
+
+            # ถ้าผู้ใช้ไม่ได้กรอกเอง ให้เติมจาก master
+            if not customer_name_raw:
+                customer_name_raw = customer.name
+
+            doc.customer_tax_id = (f.get("customer_tax_id") or "").strip() or customer.tax_id
+            doc.customer_address = (f.get("customer_address") or "").strip() or customer.address
+            doc.customer_phone = (f.get("customer_phone") or "").strip() or customer.phone
+            doc.customer_email = (f.get("customer_email") or "").strip() or customer.email
+        else:
+            # ใส่ id มาแต่ไม่เจอในระบบ -> ตัดการผูก
+            doc.customer_id = None
+    else:
+        # ไม่ได้เลือกจาก master -> ถ้าพิมพ์ชื่อเอง ให้ตัดการผูกเพื่อให้หน้า view ใช้ customer_name
+        if customer_name_raw:
+            doc.customer_id = None
+
+        # snapshot/manual fields
+        doc.customer_tax_id = (f.get("customer_tax_id") or "").strip() or None
+        doc.customer_address = (f.get("customer_address") or "").strip() or None
+        doc.customer_phone = (f.get("customer_phone") or "").strip() or None
+        doc.customer_email = (f.get("customer_email") or "").strip() or None
+
+    doc.customer_name = customer_name_raw or None
+
+    # -----------------------------
+    # ข้อมูลเอกสาร (รองรับ title/subject)
+    # -----------------------------
+    doc.subject = (f.get("subject") or f.get("title") or "").strip() or None
+    doc.description = (f.get("description") or "").strip() or None
+    doc.note = (f.get("note") or "").strip() or None
+
+    # เงื่อนไขเงินประกัน / ชำระเงิน
+    doc.deposit_note = (f.get("deposit_note") or "").strip() or None
+    doc.payment_terms = (f.get("payment_terms") or "").strip() or None
+
+    # -----------------------------
+    # ตัวเลขส่วนลด / VAT / WHT
+    # (ถ้าคอลัมน์เป็น Decimal แนะนำใช้ Decimal)
+    # -----------------------------
+    doc.discount_amount = to_decimal_like(f.get("discount_amount"))
+    doc.vat_rate = to_decimal_like(f.get("vat_rate"))
+    doc.wht_rate = to_decimal_like(f.get("wht_rate"))
+
+    # -----------------------------
+    # รับประกัน: เดือน + วันที่สิ้นสุด
+    # -----------------------------
+    # เดือน
+    wm = (f.get("warranty_months") or "").strip()
+    doc.warranty_months = int(wm) if wm.isdigit() else None
+
+    # วันที่สิ้นสุด (ต้องมีคอลัมน์ doc.warranty_end_date ใน model)
+    # รองรับทั้ง YYYY-MM-DD และ DD/MM/YYYY
+    w_end = f.get("warranty_end_date") or f.get("warranty_end") or ""
+    w_end_date = parse_date_yyyy_mm_dd(w_end) or parse_date_dd_mm_yyyy(w_end)
+
+    if hasattr(doc, "warranty_end_date"):
+        doc.warranty_end_date = w_end_date
+
+    # -----------------------------
+    # รายการสินค้า/บริการ
+    # - รองรับชื่อ input ได้ 2 แบบ:
+    #   A) description[] / qty[] / unit_price[] / discount_amount[]
+    #   B) item_name[] / qty[] / unit_price[] / line_discount[]
+    # -----------------------------
+    doc.items.clear()
+
+    descs = f.getlist("description[]")
+    if not descs:
+        descs = f.getlist("item_name[]")
+
+    qtys = f.getlist("qty[]")
+    prices = f.getlist("unit_price[]")
+
+    line_discs = f.getlist("discount_amount[]")
+    if not line_discs:
+        line_discs = f.getlist("line_discount[]")
+
+    row_count = max(len(descs), len(qtys), len(prices), len(line_discs))
+
+    for i in range(row_count):
+        desc = (descs[i] if i < len(descs) else "") or ""
+        desc = desc.strip()
+
+        qty = to_decimal_like(qtys[i] if i < len(qtys) else "")
+        price = to_decimal_like(prices[i] if i < len(prices) else "")
+        ldisc = to_decimal_like(line_discs[i] if i < len(line_discs) else "")
+
+        # ข้ามแถวที่ว่างจริง ๆ
+        if not desc and qty == 0 and price == 0 and ldisc == 0:
+            continue
+
+        doc.items.append(
+            SalesItem(
+                description=desc or "(ไม่ระบุ)",
+                qty=qty,
+                unit_price=price,
+                discount_amount=ldisc,
+            )
+        )
+
+    db.session.commit()
+    flash("บันทึกการแก้ไขใบเสนอราคาเรียบร้อย", "success")
+    return redirect(url_for("docs.doc_view", doc_id=doc.id))

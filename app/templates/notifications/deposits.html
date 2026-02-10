@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% set title = 'แจ้งเตือนคืนเงินประกัน' %}
+
+{% block content %}
+<style>
+  .filters{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+  .filters .left{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .kpiGrid{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:12px;
+  }
+  .kpi{
+    border: 1px solid rgba(255,255,255,.08);
+    background: rgba(10,15,25,.35);
+    border-radius: 16px;
+    padding: 12px 14px;
+  }
+  .kpi .k{ font-size:12px; opacity:.75; }
+  .kpi .v{ font-size:22px; font-weight:800; margin-top:4px; }
+
+  .pl-pos{ color: rgba(120, 255, 180, .95); }
+  .pl-neg{ color: rgba(255, 140, 140, .95); }
+
+  .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
+  .table{ min-width: 980px; }
+
+  .status-pill{
+    display:inline-flex; align-items:center; gap:8px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.06);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: 800;
+  }
+  .status-pill.ok{ border-color: rgba(120,255,180,.25); }
+  .status-pill.no{ border-color: rgba(255,140,140,.25); }
+
+  @media (max-width: 860px){
+    .kpiGrid{ grid-template-columns: 1fr 1fr; }
+  }
+</style>
+
+<div class="pagehead">
+  <div>
+    <h1>แจ้งเตือนครบกำหนดคืนเงินประกัน</h1>
+    <div class="muted">แสดงรายการจากข้อมูลในรายละเอียดโครงการ (และ/หรือใบเสนอราคา QT)</div>
+  </div>
+</div>
+
+<div class="card">
+  <form class="filters" method="get" action="{{ url_for('pages.deposit_notifications') }}">
+    <div class="left">
+      <input class="input" name="q" value="{{ q }}" placeholder="ค้นหา: ชื่อลูกค้า / โครงการ / รหัส" style="min-width:260px;"/>
+      <button class="btn btn-primary" type="submit">ค้นหา</button>
+      {% if q %}
+        <a class="btn btn-ghost" href="{{ url_for('pages.deposit_notifications') }}">ล้าง</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="kpiGrid mt-12">
+  <div class="kpi">
+    <div class="k">เงินมัดจำที่ยังไม่ได้รับคืนรวม</div>
+    <div class="v mono">{{ '%.2f'|format(sum_not_returned or 0) }}</div>
+  </div>
+  <div class="kpi">
+    <div class="k">เงินมัดจำที่รับคืนแล้วรวม</div>
+    <div class="v mono">{{ '%.2f'|format(sum_returned or 0) }}</div>
+  </div>
+  <div class="kpi">
+    <div class="k">โครงการที่ยังไม่เก็บเงินประกัน (เงินประกัน = 0)</div>
+    <div class="v mono">{{ cnt_no_deposit or 0 }}</div>
+  </div>
+  <div class="kpi">
+    <div class="k">โครงการที่เก็บเงินประกันคืนแล้ว</div>
+    <div class="v mono">{{ cnt_returned or 0 }}</div>
+  </div>
+</div>
+
+<div class="card mt-12">
+  <div class="section-head">
+    <div>
+      <div class="section-title">รายการเงินประกัน</div>
+      <div class="muted">กด “รับคืนเงินประกัน” เพื่อเปลี่ยนสถานะ</div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width:120px;">รหัส</th>
+          <th>โครงการ</th>
+          <th style="width:200px;">ลูกค้า</th>
+          <th class="right" style="width:160px;">ยอดเงินประกัน</th>
+          <th style="width:170px;">วันสิ้นสุดประกัน</th>
+          <th style="width:180px;">สถานะ</th>
+          <th style="width:200px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if rows %}
+          {% for r in rows %}
+            <tr>
+              <td class="mono">{{ r.code }}</td>
+              <td>
+                <a class="link" href="{{ url_for('pages.project_view', pid=r.id) }}">{{ r.project_name }}</a>
+              </td>
+              <td>{{ r.customer_name }}</td>
+              <td class="right mono">{{ '%.2f'|format(r.deposit_amount or 0) }}</td>
+              <td class="mono">
+                {% if r.end_date %}{{ r.end_date }}{% else %}-{% endif %}
+              </td>
+              <td>
+                {% if r.returned %}
+                  <span class="status-pill ok">✅ ได้รับคืนแล้ว</span>
+                {% else %}
+                  <span class="status-pill no">⏳ ยังไม่รับคืน</span>
+                {% endif %}
+              </td>
+              <td class="right">
+                {% if not r.returned %}
+                  <form method="post" action="{{ url_for('pages.deposit_mark_returned', pid=r.id) }}" style="display:inline;">
+                    <button class="btn btn-small btn-primary" type="submit">รับคืนเงินประกัน</button>
+                  </form>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="7" class="muted">ยังไม่มีข้อมูล</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

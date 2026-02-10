@@ -30,6 +30,9 @@
   .kpi .v{ font-size: 18px; font-weight: 800; margin-top: 2px; }
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 
+  /* ✅ NEW: KPI wide (ให้กล่อง “ต้นทุนโครงการ” กินเต็มแถว) */
+  .kpi-wide{ grid-column: 1 / -1; }
+
   /* ===== Voucher Toolbar (จัดระเบียบใหม่) ===== */
   .voucherBar{
     margin-top: 14px;
@@ -219,6 +222,45 @@
 
   <div class="mt-12 stickyTotals">
     <div class="grid">
+
+      {# ==========================
+         ✅ NEW: ต้นทุนโครงการ (ดึงจากยอดรวมของ QT ที่ผูกกับ Project)
+         - ใช้ qt_doc (SalesDoc) ที่ส่งมาจาก pages.project_view
+         - คิดยอดแบบเดียวกับหน้า print QT: รวมรายการ -> หักส่วนลด -> หัก WHT -> บวก VAT
+         ========================== #}
+      {% if qt_doc is defined and qt_doc %}
+        {% set nsqt = namespace(subtotal=0) %}
+        {% for it in (qt_doc.items or []) %}
+          {% set qty = (it.qty or 0) %}
+          {% set price = (it.unit_price or 0) %}
+          {% set line_disc = (it.discount_amount or 0) %}
+          {% set line_total = (qty * price) - line_disc %}
+          {% set nsqt.subtotal = nsqt.subtotal + line_total %}
+        {% endfor %}
+
+        {% set qt_subtotal = nsqt.subtotal %}
+        {% set qt_discount_total = (qt_doc.discount_amount or 0) %}
+        {% set qt_net_before_tax = qt_subtotal - qt_discount_total %}
+        {% set qt_vat_rate = (qt_doc.vat_rate or 0) %}
+        {% set qt_wht_rate = (qt_doc.wht_rate or 0) %}
+        {% set qt_wht_amount = (qt_net_before_tax * qt_wht_rate) / 100 %}
+        {% set qt_net_after_wht = qt_net_before_tax - qt_wht_amount %}
+        {% set qt_vat_amount = (qt_net_after_wht * qt_vat_rate) / 100 %}
+        {% set qt_grand_total = qt_net_after_wht + qt_vat_amount %}
+
+        <div class="kpi kpi-wide">
+          <div class="k">ชื่อต้นทุนโครงการ</div>
+          <div class="v" style="font-size:14px; font-weight:800; margin-top:2px;">
+            {{ qt_doc.doc_no }}
+            {% if qt_doc.customer_name or (qt_doc.customer and qt_doc.customer.name) %}
+              • {{ qt_doc.customer_name or qt_doc.customer.name }}
+            {% endif %}
+          </div>
+          <div class="k" style="margin-top:6px;">ตัวเลขต้นทุน (ยอดรวมใบเสนอราคา)</div>
+          <div class="v mono">{{ "%.2f"|format(qt_grand_total or 0) }}</div>
+        </div>
+      {% endif %}
+
       <div class="kpi">
         <div class="k">ค่าวัสดุ</div>
         <div class="v mono">{{ "%.2f"|format(materials_total or 0) }}</div>

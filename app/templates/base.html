@@ -12,21 +12,23 @@
   <!-- ✅ iOS PWA support -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Contractor Tracker" />
+  <meta name="apple-mobile-web-app-title" content="SuperFlow" />
 
   <!-- ✅ Android PWA hint -->
   <meta name="mobile-web-app-capable" content="yes" />
 
-  <title>{{ title or "Contractor Project Tracker" }}</title>
+  <title>{{ title or "SuperFlow" }}</title>
 
+  <!-- ✅ Manifest -->
   <link rel="manifest" href="{{ url_for('static', filename='pwa/manifest.json') }}">
-  <link rel="icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+
+  <!-- ✅ Favicons / PWA icons (ตามชื่อไฟล์ที่คุณตั้งจริง) -->
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/superflow-appicon-192.png') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='icons/superflow-appicon-192.png') }}">
 
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 
-  <!-- ✅ Emergency CSS fix (until you send app.css)
-       - กันปัญหา 100vh เพี้ยนบนมือถือ/PWA
-       - กัน safe-area (notch/home bar) ทำให้ layout ดูโดนดัน -->
+  <!-- ✅ Emergency CSS fix + SuperFlow Hero Header -->
   <style>
     :root{
       --safe-top: env(safe-area-inset-top);
@@ -65,10 +67,97 @@
       overscroll-behavior: none;
       touch-action: manipulation;
     }
+
+    /* ===== SuperFlow Hero Header (Glass) ===== */
+    .topbar--hero{
+      position: sticky;
+      top: 0;
+      z-index: 60;
+
+      /* ✅ glass effect */
+      background: rgba(11, 18, 32, .55);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .topbar__inner--center{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      min-height: 130px; /* เผื่อโลโก้ใหญ่ */
+      padding: 12px 0;
+    }
+
+    /* ดันปุ่ม hamburger ไปซ้าย */
+    .topbar__inner--center .hamburger{
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* กล่องโลโก้กลาง */
+    .hero-brand{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+      padding: 4px 12px;
+    }
+
+    /* โลโก้ (ใหญ่ขึ้น ~3 เท่า) */
+    .hero-brand__img{
+      height: 130px;
+      max-width: 720px;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* ข้อความใต้โลโก้ */
+    .hero-brand__tagline{
+      font-size: 13px;
+      color: rgba(230,238,252,.75);
+      letter-spacing: .2px;
+      line-height: 1.2;
+    }
+
+    /* Mobile */
+    @media (max-width: 480px){
+      .topbar__inner--center{
+        min-height: 120px;
+      }
+      .hero-brand__img{
+        height: 96px;
+        max-width: 90%;
+      }
+      .hero-brand__tagline{
+        font-size: 12px;
+      }
+    }
+
+    /* ✅ ให้เมนูอยู่เหนือ topbar */
+.drawer-backdrop{
+  z-index: 120;   /* สูงกว่า topbar (60) */
+}
+
+.drawer{
+  z-index: 130;   /* สูงกว่า backdrop */
+}
+
+/* (ไม่บังคับ) ถ้าบางที topbar ยังทับ ให้ลดมันลง */
+.topbar--hero{
+  z-index: 50;
+}
+
   </style>
 
   {% block head %}{% endblock %}
 </head>
+
 <body>
   <!-- Drawer backdrop -->
   <div class="drawer-backdrop" data-drawer-close></div>
@@ -77,10 +166,11 @@
   <aside class="drawer" aria-label="เมนูหลัก" aria-hidden="true">
     <div class="drawer__head">
       <div class="drawer__brand">
-        <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="drawer__icon">
+        <!-- ✅ ใช้ app icon ของคุณ -->
+        <img src="{{ url_for('static', filename='icons/superflow-appicon-192.png') }}" alt="SuperFlow" class="drawer__icon">
         <div>
-          <div class="drawer__title">Contractor Tracker</div>
-          <div class="drawer__subtitle">โครงการ • วัสดุ • ผู้รับเหมาช่วง</div>
+          <div class="drawer__title">SuperFlow</div>
+          <div class="drawer__subtitle">จัดการค่าใช้จ่าย เพื่อกำไรที่ชัดเจน</div>
         </div>
       </div>
       <button class="drawer__close" type="button" aria-label="ปิดเมนู" data-drawer-close>✕</button>
@@ -91,26 +181,38 @@
         <span class="drawer__emoji">📁</span>
         <span>โครงการ</span>
       </a>
+
       <a class="drawer__link {{ 'is-active' if request.path == '/dashboard' else '' }}" href="{{ url_for('pages.dashboard') }}">
         <span class="drawer__emoji">📊</span>
         <span>สรุป</span>
       </a>
+
       <a class="drawer__link {{ 'is-active' if request.path.startswith('/dashboard/income') else '' }}" href="{{ url_for('pages.dashboard_income') }}">
         <span class="drawer__emoji">💰</span>
         <span>สรุปรายรับ</span>
       </a>
+
       <a class="drawer__link {{ 'is-active' if request.path.startswith('/dashboard/expense') else '' }}" href="{{ url_for('pages.dashboard_expense') }}">
         <span class="drawer__emoji">💸</span>
         <span>สรุปรายจ่าย</span>
       </a>
+
+      <!-- ✅ แจ้งเตือนครบกำหนดคืนเงินประกัน -->
+      <a class="drawer__link {{ 'is-active' if request.path.startswith('/deposits/notifications') else '' }}" href="{{ url_for('pages.deposit_notifications') }}">
+        <span class="drawer__emoji">🔔</span>
+        <span>แจ้งเตือนเงินประกัน</span>
+      </a>
+
       <a class="drawer__link {{ 'is-active' if request.path.startswith('/docs') else '' }}" href="{{ url_for('docs.docs_list') }}">
         <span class="drawer__emoji">🧾</span>
         <span>เอกสารขาย</span>
       </a>
+
       <a class="drawer__link {{ 'is-active' if request.path.startswith('/customers') else '' }}" href="{{ url_for('customers.customers_list') }}">
         <span class="drawer__emoji">👥</span>
         <span>ลูกค้า</span>
       </a>
+
       <a class="drawer__link {{ 'is-active' if request.path.startswith('/settings/company') else '' }}" href="{{ url_for('settings.company_settings') }}">
         <span class="drawer__emoji">🏢</span>
         <span>ตั้งค่าบริษัท</span>
@@ -124,26 +226,30 @@
     </div>
   </aside>
 
-  <header class="topbar">
-    <div class="topbar__inner">
+  <!-- ✅ Hero header -->
+  <header class="topbar topbar--hero">
+    <div class="topbar__inner topbar__inner--center">
+      <!-- ปุ่มเมนู -->
       <button class="hamburger" type="button" aria-label="เปิดเมนู" data-drawer-open>
         <span class="hamburger__bar"></span>
         <span class="hamburger__bar"></span>
         <span class="hamburger__bar"></span>
       </button>
 
-      <div class="brand">
-        <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="brand__icon">
-        <div class="brand__text">
-          <div class="brand__title">Contractor Tracker</div>
-          <div class="brand__subtitle">โครงการ • วัสดุ • ผู้รับเหมาช่วง</div>
-        </div>
+      <!-- โลโก้กลาง + tagline -->
+      <div class="hero-brand">
+        <img
+          src="{{ url_for('static', filename='icons/superflow-wordmark.png') }}"
+          alt="SuperFlow"
+          class="hero-brand__img"
+          loading="eager"
+        >
+        <div class="hero-brand__tagline">จัดการค่าใช้จ่าย เพื่อกำไรที่ชัดเจน</div>
       </div>
     </div>
   </header>
 
   <main class="container">
-
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div style="margin: 12px 0; display:flex; flex-direction:column; gap:8px;">

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+import re
+from datetime import date, datetime
 from io import BytesIO
 
 from flask import (
@@ -16,14 +17,16 @@ from flask import (
     url_for,
 )
 from sqlalchemy import func, or_, and_
-
+from sqlalchemy.orm import joinedload
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
+from .. import db
 from ..models import (
     Project,
     SalesDoc,
+    SalesItem,
     MaterialItem,
     SubcontractorPayment,
     OtherExpense,
@@ -84,6 +87,40 @@ def _boq_abs_path(rel_path: str) -> str | None:
     return os.path.join(current_app.root_path, "static", rel_path)
 
 
+def _parse_deposit_amount(text: str | None) -> float:
+    """
+    ✅ เงินประกันถูกเก็บเป็นข้อความใน SalesDoc.deposit_note
+    เราจะพยายาม "ดึงตัวเลข" ออกมาเพื่อคำนวณ
+
+    รองรับตัวอย่าง:
+      - "เงินประกัน 10,000 บาท"
+      - "มัดจำ 5000"
+      - "หักเงินประกัน 2,500.50 บาท"
+      - "เงินประกัน 0" -> 0
+
+    หลักการ:
+      - หาเลขตัวแรกที่ดูเหมือนจำนวนเงิน (อนุญาต comma และ .)
+      - ถ้าหาไม่เจอ -> 0
+    """
+    if not text:
+        return 0.0
+
+    s = str(text).strip()
+    if not s:
+        return 0.0
+
+    # เอาเลขที่เป็นจำนวนเงินตัวแรก
+    m = re.search(r"(-?\d[\d,]*\.?\d*)", s)
+    if not m:
+        return 0.0
+
+    num_str = m.group(1).replace(",", "")
+    try:
+        return float(num_str)
+    except Exception:
+        return 0.0
+
+
 # ------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------
@@ -99,7 +136,9 @@ def home():
 def project_list():
     q = (request.args.get("q") or "").strip()
 
-    query = Project.query
+    # ✅ โหลด sales_doc ติดมาด้วย เพื่อใช้เป็น “งบประมาณ”
+    query = Project.query.options(joinedload(Project.sales_doc))
+
     if q:
         like = f"%{q}%"
         query = query.filter((Project.code.ilike(like)) | (Project.name.ilike(like)))
@@ -330,7 +369,7 @@ def vouchers_print(pid: int):
 
 
 # -------------------------
-# Dashboard (เดิม - โครงการ)
+# Dashboard (โครงการ)
 # -------------------------
 @bp_pages.route("/dashboard")
 def dashboard():
@@ -364,11 +403,15 @@ def dashboard():
             func.extract("year", Project.created_at) == year,
         )
 
-    q = Project.query.filter(or_(start_filter, fallback_filter))
-
+    # ✅ โหลด sales_doc ด้วย เพราะต้องรวมรายรับ
+    q = (
+        Project.query.options(joinedload(Project.sales_doc))
+        .filter(or_(start_filter, fallback_filter))
+    )
     projects = q.all()
 
     tot_m = tot_s = tot_e = tot_g = 0.0
+    tot_income = 0.0  # ✅ รายรับรวม (QT APPROVED)
     rows = []
 
     for p in projects:
@@ -377,6 +420,15 @@ def dashboard():
         tot_s += s
         tot_e += e
         tot_g += g
+
+        # ✅ รวมรายรับจากใบเสนอราคา QT (sales_doc) เฉพาะที่อนุมัติแล้ว
+        doc = getattr(p, "sales_doc", None)
+        if doc and getattr(doc, "status", None) == "APPROVED":
+            try:
+                tot_income += float(getattr(doc, "grand_total", 0) or 0)
+            except Exception:
+                pass
+
         rows.append(
             {
                 "id": p.id,
@@ -392,6 +444,9 @@ def dashboard():
     rows.sort(key=lambda r: r["total"], reverse=True)
     top5 = rows[:5]
 
+    # ✅ กำไร/ขาดทุนรวม = รายรับรวม - รวมรายจ่ายทั้งหมด
+    profit_loss = tot_income - tot_g
+
     class Totals:
         def __init__(self, m, s, e, g):
             self.materials = m
@@ -406,7 +461,10 @@ def dashboard():
         years=years,
         totals=Totals(tot_m, tot_s, tot_e, tot_g),
         top5=top5,
+        total_income=round(tot_income, 2),  # ✅ เพิ่ม
+        profit_loss=round(profit_loss, 2),  # ✅ เพิ่ม
     )
+
 
 # -------------------------
 # Export Excel
@@ -524,6 +582,13 @@ def dashboard_export_xlsx():
 # ------------------------------------------------------------
 # Finance dashboards (แยก รายรับ / รายจ่าย)
 # ------------------------------------------------------------
+
+# ✅ รองรับ url เก่าที่พิมพ์ผิด เผื่อมีคนกดค้างไว้
+@bp_pages.get("/dashboard/in come")
+def dashboard_income_typo_redirect():
+    return redirect(url_for("pages.dashboard_income"))
+
+
 @bp_pages.get("/dashboard/income")
 def dashboard_income():
     """Dashboard รายรับ (นับจากใบกำกับภาษี IV ที่สถานะ APPROVED)"""
@@ -567,7 +632,10 @@ def dashboard_income():
         total_wht += wht
         total_net += net_pay
 
-    labels = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    labels = [
+        "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+    ]
     series = [round(month_totals[m], 2) for m in range(1, 13)]
     counts = [month_count[m] for m in range(1, 13)]
     years = list(range(today.year - 5, today.year + 2))
@@ -640,7 +708,10 @@ def dashboard_expense():
             total_other += amt
         _acc(dt, amt)
 
-    labels = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    labels = [
+        "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+        "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."
+    ]
     series = [round(month_totals[m], 2) for m in range(1, 13)]
     counts = [month_count[m] for m in range(1, 13)]
     years = list(range(today.year - 5, today.year + 2))
@@ -663,3 +734,116 @@ def dashboard_expense():
 @bp_pages.get("/dashboard/finance")
 def dashboard_finance_redirect():
     return redirect(url_for("pages.dashboard_income"))
+
+
+# ------------------------------------------------------------
+# Deposit Notifications
+# ------------------------------------------------------------
+@bp_pages.get("/deposits/notifications")
+def deposit_notifications():
+    """
+    แจ้งเตือนครบกำหนดคืนเงินประกัน
+
+    แสดง:
+      - ชื่อลูกค้า
+      - โครงการ
+      - ยอดเงินประกัน
+      - วันสิ้นสุดประกัน
+      - สถานะ (ยังไม่รับคืน / ได้รับคืนแล้ว)
+      - ปุ่มรับคืนเงินประกัน
+
+    สรุปด้านบน:
+      - เงินมัดจำที่ยังไม่ได้รับคืนรวมเท่าไหร่
+      - เงินมัดจำที่รับคืนแล้วรวมเท่าไหร่
+      - โครงการที่ยังไม่เก็บเงินประกัน (เงินประกัน = 0) มีกี่โครงการ
+      - โครงการที่เก็บเงินประกันคืนแล้วมีกี่โครงการ
+    """
+    q = (request.args.get("q") or "").strip()
+
+    query = Project.query.options(joinedload(Project.sales_doc))
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            or_(
+                Project.code.ilike(like),
+                Project.name.ilike(like),
+                Project.customer_name.ilike(like),
+            )
+        )
+
+    projects = query.order_by(Project.updated_at.desc()).all()
+
+    rows = []
+    sum_not_returned = 0.0
+    sum_returned = 0.0
+    cnt_no_deposit = 0
+    cnt_returned = 0
+
+    for p in projects:
+        doc = getattr(p, "sales_doc", None)
+
+        # ✅ ชื่อลูกค้า: Project ก่อน / fallback จาก doc
+        customer_name = (
+            (getattr(p, "customer_name", None) or "").strip()
+            or (getattr(doc, "customer_name", None) if doc else None)
+            or "-"
+        )
+
+        # ✅ เงินประกัน: ดึงจาก SalesDoc.deposit_note (เป็นข้อความจากฟอร์ม QT)
+        deposit_note = getattr(doc, "deposit_note", None) if doc else None
+        dep_amount_f = _parse_deposit_amount(deposit_note)
+
+        # ✅ วันสิ้นสุดประกัน: doc.warranty_end_date (ตามโมเดล SalesDoc)
+        end_date = getattr(doc, "warranty_end_date", None) if doc else None
+
+        returned = bool(getattr(p, "deposit_returned", False))
+
+        # ✅ KPI
+        if dep_amount_f <= 0:
+            cnt_no_deposit += 1
+        else:
+            if returned:
+                sum_returned += dep_amount_f
+                cnt_returned += 1
+            else:
+                sum_not_returned += dep_amount_f
+
+        rows.append(
+            {
+                "id": p.id,
+                "code": p.code,
+                "project_name": p.name,
+                "customer_name": customer_name,
+                "deposit_amount": dep_amount_f,
+                "end_date": end_date,
+                "returned": returned,
+            }
+        )
+
+    return render_template(
+        # ✅ ให้ตรงกับไฟล์ที่คุณสร้างไว้
+        "notifications/deposits.html",
+        q=q,
+        rows=rows,
+        sum_not_returned=round(sum_not_returned, 2),
+        sum_returned=round(sum_returned, 2),
+        cnt_no_deposit=cnt_no_deposit,
+        cnt_returned=cnt_returned,
+    )
+
+
+@bp_pages.post("/deposits/<int:pid>/return")
+def deposit_mark_returned(pid: int):
+    """กดรับคืนเงินประกัน: เปลี่ยนสถานะเป็นรับคืนแล้ว"""
+    p = Project.query.get_or_404(pid)
+    p.deposit_returned = True
+
+    # ✅ ถ้า field เป็น DateTime ให้ใช้ datetime.utcnow()
+    try:
+        p.deposit_returned_at = datetime.utcnow()
+    except Exception:
+        # fallback เผื่อเป็น Date
+        p.deposit_returned_at = date.today()
+
+    db.session.commit()
+    return redirect(url_for("pages.deposit_notifications"))

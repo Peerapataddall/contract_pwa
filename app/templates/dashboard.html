@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %} 
 {% set title = 'สรุป' %}
 
 {% block content %}
@@ -9,9 +9,10 @@
   .dashFilters .left{ display:flex; gap:10px; flex-wrap:wrap; }
   .btn{ min-height:44px; }
   .input{ min-height:44px; }
+
   .kpiGrid{
     display:grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(6, 1fr); /* ✅ จาก 4 -> 6 ช่อง */
     gap:12px;
   }
   .kpi{
@@ -22,11 +23,19 @@
   }
   .kpi .k{ font-size:12px; opacity:.75; }
   .kpi .v{ font-size:22px; font-weight:800; margin-top:4px; }
+
+  /* ✅ สี กำไร/ขาดทุน */
+  .pl-pos{ color: rgba(120, 255, 180, .95); }
+  .pl-neg{ color: rgba(255, 140, 140, .95); }
+
   .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
   .table{ min-width: 820px; }
 
+  @media (max-width: 1100px){
+    .kpiGrid{ grid-template-columns: 1fr 1fr 1fr; } /* 3 ช่อง/แถว */
+  }
   @media (max-width: 860px){
-    .kpiGrid{ grid-template-columns: 1fr 1fr; }
+    .kpiGrid{ grid-template-columns: 1fr 1fr; } /* 2 ช่อง/แถว */
   }
 </style>
 
@@ -84,6 +93,23 @@
   <div class="kpi">
     <div class="k">รวมทั้งหมด</div>
     <div class="v mono">{{ '%.2f'|format(totals.grand or 0) }}</div>
+  </div>
+
+  {# ✅ เพิ่ม: รายรับรวม (จาก QT APPROVED) #}
+  <div class="kpi">
+    <div class="k">รายรับรวม</div>
+    <div class="v mono">{{ '%.2f'|format(total_income or 0) }}</div>
+  </div>
+
+  {# ✅ เพิ่ม: กำไร/ขาดทุนรวม = รายรับรวม - รวมทั้งหมด #}
+  {% set pl = (profit_loss or 0) %}
+  <div class="kpi">
+    <div class="k">กำไร/ขาดทุน</div>
+    <div class="v mono">
+      <span class="{{ 'pl-neg' if pl < 0 else 'pl-pos' }}">
+        {{ '%.2f'|format(pl) }}
+      </span>
+    </div>
   </div>
 </div>
 

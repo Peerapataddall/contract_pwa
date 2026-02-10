@@ -21,10 +21,19 @@ def _parse_date(value: str | None):
 
 
 def _to_float(x):
-    try:
+    if x is None:
+        return 0.0
+    if isinstance(x, (int, float)):
         return float(x)
+    try:
+        s = str(x).strip()
+        if s == "":
+            return 0.0
+        s = s.replace(",", "")
+        return float(s)
     except Exception:
         return 0.0
+
 
 
 @bp_api.get("/projects/<int:pid>")

@@ -1,20 +1,25 @@
 {
-  "name": "Contractor Project Tracker",
-  "short_name": "Contractor",
+  "name": "SuperFlow",
+  "short_name": "SuperFlow",
+  "description": "จัดการค่าใช้จ่าย เพื่อกำไรที่ชัดเจน",
   "start_url": "/projects",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
+  "orientation": "portrait",
   "icons": [
     {
-      "src": "/static/icons/icon-192.png",
+      "src": "/static/icons/superflow-appicon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "/static/icons/icon-512.png",
+      "src": "/static/icons/superflow-appicon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

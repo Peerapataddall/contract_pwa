@@ -4,10 +4,12 @@
 {% block content %}
 
 {# =========================================================
-   ✅ LIST PAGE FIX (Mobile/PWA)
-   - บังคับ Desktop = Table, Mobile = Cards (กัน CSS หลุดบน Render)
-   - ปรับ search bar ให้ไม่ล้นบนมือถือ
-   - การ์ดกดชื่อไปหน้า view ได้
+   ✅ LIST PAGE UPDATE
+   - Desktop = Table, Mobile = Cards (กัน CSS หลุดบน Render)
+   - เพิ่มคอลัมน์ “งบประมาณ” + “กำไร/ขาดทุน”
+   - งบประมาณ: p.sales_doc.grand_total (แสดงเมื่อ status=APPROVED)
+   - กำไร/ขาดทุน: งบประมาณ - ต้นทุนรวม (ติดลบได้)
+   - ✅ FIX: Decimal vs float -> แปลงเป็น float ก่อนคำนวณ (|float)
    ========================================================= #}
 
 <style>
@@ -87,6 +89,10 @@
     text-align: center;
     opacity: .75;
   }
+
+  /* Profit/Loss coloring (optional, safe) */
+  .pl-pos{ color: rgba(120, 255, 180, .95); }
+  .pl-neg{ color: rgba(255, 140, 140, .95); }
 </style>
 
 <div class="pagehead">
@@ -117,12 +123,21 @@
           <th style="width: 110px;">รหัส</th>
           <th>ชื่อโครงการ</th>
           <th style="width: 140px;">สถานะ</th>
+          <th style="width: 140px;" class="right">งบประมาณ</th>
           <th style="width: 140px;" class="right">ต้นทุนรวม</th>
+          <th style="width: 150px;" class="right">กำไร/ขาดทุน</th>
           <th style="width: 180px;"></th>
         </tr>
       </thead>
       <tbody>
         {% for p in projects %}
+
+        {# ✅ งบประมาณจาก QT (sales_doc) เฉพาะ APPROVED #}
+        {% set _doc = p.sales_doc %}
+        {% set _budget = (_doc.grand_total|float) if _doc and (_doc.status or '') == 'APPROVED' else None %}
+        {% set _cost = (p.total_cost or 0)|float %}
+        {% set _pl = (_budget - _cost) if _budget is not none else None %}
+
         <tr>
           <td class="mono">{{ p.code }}</td>
           <td>
@@ -136,13 +151,33 @@
               {{ {'IN_PROGRESS':'กำลังทำงาน','DEFECT':'กำลังเก็บ Defect','DONE':'งานจบ'}[p.status] if p.status in ['IN_PROGRESS','DEFECT','DONE'] else p.status }}
             </span>
           </td>
-          <td class="right mono">{{ '%.2f'|format(p.total_cost or 0) }}</td>
+
+          <td class="right mono">
+            {% if _budget is not none %}
+              {{ '%.2f'|format(_budget) }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+
+          <td class="right mono">{{ '%.2f'|format(_cost) }}</td>
+
+          <td class="right mono">
+            {% if _pl is not none %}
+              <span class="{{ 'pl-neg' if _pl < 0 else 'pl-pos' }}">
+                {{ '%.2f'|format(_pl) }}
+              </span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+
           <td class="right">
             <a class="btn btn-small" href="{{ url_for('pages.project_edit', pid=p.id) }}">✏️ แก้ไข</a>
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="5" class="muted center" style="padding: 18px;">ยังไม่มีข้อมูล</td></tr>
+        <tr><td colspan="7" class="muted center" style="padding: 18px;">ยังไม่มีข้อมูล</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -152,6 +187,12 @@
   <div class="mobile-cards">
     {% for p in projects %}
       {% set _st = (p.status or '') %}
+
+      {% set _doc = p.sales_doc %}
+      {% set _budget = (_doc.grand_total|float) if _doc and (_doc.status or '') == 'APPROVED' else None %}
+      {% set _cost = (p.total_cost or 0)|float %}
+      {% set _pl = (_budget - _cost) if _budget is not none else None %}
+
       <div class="mcard">
 
         <div class="mcard__row">
@@ -181,8 +222,32 @@
         </div>
 
         <div class="mcard__row">
+          <div class="mcard__label">งบประมาณ</div>
+          <div class="mcard__value right mono">
+            {% if _budget is not none %}
+              {{ '%.2f'|format(_budget) }}
+            {% else %}
+              -
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mcard__row">
           <div class="mcard__label">ต้นทุนรวม</div>
-          <div class="mcard__value right mono">{{ '%.2f'|format(p.total_cost or 0) }}</div>
+          <div class="mcard__value right mono">{{ '%.2f'|format(_cost) }}</div>
+        </div>
+
+        <div class="mcard__row">
+          <div class="mcard__label">กำไร/ขาดทุน</div>
+          <div class="mcard__value right mono">
+            {% if _pl is not none %}
+              <span class="{{ 'pl-neg' if _pl < 0 else 'pl-pos' }}">
+                {{ '%.2f'|format(_pl) }}
+              </span>
+            {% else %}
+              -
+            {% endif %}
+          </div>
         </div>
 
         <div class="mcard__actions">

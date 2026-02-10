@@ -15,7 +15,6 @@ class TimestampMixin:
     )
 
 
-
 class Customer(db.Model, TimestampMixin):
     __tablename__ = "customers"
 
@@ -52,6 +51,13 @@ class Project(db.Model, TimestampMixin):
 
     # statuses: IN_PROGRESS, DEFECT, DONE
     status = db.Column(db.String(30), nullable=False, default="IN_PROGRESS")
+
+    # -------------------------------------------------
+    # ✅ Deposit return tracking (คืนเงินประกัน)
+    # - ใช้สำหรับหน้า "แจ้งเตือนครบกำหนดคืนเงินประกัน"
+    # -------------------------------------------------
+    deposit_returned = db.Column(db.Boolean, nullable=False, default=False)
+    deposit_returned_at = db.Column(db.Date, nullable=True)
 
     # -------------------------------------------------
     # ✅ NEW: link Project <-> QT (SalesDoc)
@@ -444,6 +450,7 @@ class SalesDoc(db.Model, TimestampMixin):
     # เงื่อนไขเงินประกัน + ระยะเวลารับประกัน (เดือน) + เงื่อนไขชำระเงิน
     deposit_note = db.Column(db.Text, nullable=True)
     warranty_months = db.Column(db.Integer, nullable=True)
+    warranty_end_date = db.Column(db.Date, nullable=True)
     payment_terms = db.Column(db.Text, nullable=True)
 
     # อนุมัติ
