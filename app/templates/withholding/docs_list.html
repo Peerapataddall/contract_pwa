@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set title = "ออกเอกสารหัก ณ ที่จ่าย (ภงด 3/53)" %}
+
+{% block content %}
+<div class="card">
+  <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div>
+      ออกเอกสารหัก ณ ที่จ่าย
+      <div class="muted" style="font-size:12px;margin-top:4px;">เริ่มที่ ภงด 3 / ภงด 53 (1 ใบ = 1 รายการ)</div>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('withholding_docs.docs_new') }}">+ สร้างเอกสาร</a>
+  </div>
+
+  <form method="get" class="mt-12" style="display:flex;gap:10px;align-items:center;">
+    <input class="input" name="q" value="{{ q or '' }}" placeholder="ค้นหาเลขที่เอกสาร / ชื่อผู้จ่ายเงิน" style="flex:1;">
+    <button class="btn" type="submit">ค้นหา</button>
+  </form>
+
+  <div class="mt-12" style="overflow:auto;">
+    <table class="table" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th>เลขที่เอกสาร</th>
+          <th>ฟอร์ม</th>
+          <th>วันที่จ่าย</th>
+          <th>ผู้ถูกหัก</th>
+          <th>ฐานภาษี</th>
+          <th>ภาษีหัก</th>
+          <th style="width:220px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in docs %}
+          <tr>
+            <td><strong>{{ d.doc_no }}</strong></td>
+            <td>{{ d.form_type }}</td>
+            <td>{{ d.payment_date }}</td>
+            <td>{{ d.payee_display_name }}</td>
+            <td>{{ "%.2f"|format(d.base_amount or 0) }}</td>
+            <td>{{ "%.2f"|format(d.wht_amount or 0) }}</td>
+            <td style="display:flex;gap:8px;justify-content:flex-end;">
+              <a class="btn" href="{{ url_for('withholding_docs.docs_edit', doc_id=d.id) }}">แก้ไข</a>
+              <a class="btn btn-primary" href="{{ url_for('withholding_docs.docs_pdf', doc_id=d.id) }}">พิมพ์ PDF</a>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="muted" style="padding:16px;">ยังไม่มีเอกสาร</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

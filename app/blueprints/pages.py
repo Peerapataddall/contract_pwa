@@ -30,6 +30,7 @@ from ..models import (
     MaterialItem,
     SubcontractorPayment,
     OtherExpense,
+    AdvanceExpense,  # ✅ NEW
 )
 
 bp_pages = Blueprint("pages", __name__)
@@ -44,6 +45,25 @@ def _num(x):
         return 0.0
 
 
+def _pick_month_date(obj, *attr_names):
+    """
+    เลือกวันที่ที่ควรใช้นับเดือน/ปีให้ dashboard:
+    - ถ้ามี field วันที่จริง (เช่น pay_date/expense_date/advance_date) ให้ใช้ก่อน
+    - ถ้าไม่มี ให้ fallback created_at (TimestampMixin)
+    """
+    for a in attr_names:
+        try:
+            dt = getattr(obj, a, None)
+            if dt:
+                return dt
+        except Exception:
+            pass
+    try:
+        return getattr(obj, "created_at", None)
+    except Exception:
+        return None
+
+
 def _project_totals(p: Project):
     materials = sum(_num(m.unit_price) * _num(m.qty) for m in (p.materials or []))
     subs_pay = sum(
@@ -51,8 +71,12 @@ def _project_totals(p: Project):
         for s in (p.subcontractors or [])
     )
     expenses = sum(_num(e.amount) for e in (p.expenses or []))
-    grand = materials + subs_pay + expenses
-    return materials, subs_pay, expenses, grand
+
+    # ✅ NEW: advances
+    advances = sum(_num(a.amount) for a in (getattr(p, "advances", None) or []))
+
+    grand = materials + subs_pay + expenses + advances
+    return materials, subs_pay, expenses, advances, grand
 
 
 def _excel_styles(ws):
@@ -91,16 +115,6 @@ def _parse_deposit_amount(text: str | None) -> float:
     """
     ✅ เงินประกันถูกเก็บเป็นข้อความใน SalesDoc.deposit_note
     เราจะพยายาม "ดึงตัวเลข" ออกมาเพื่อคำนวณ
-
-    รองรับตัวอย่าง:
-      - "เงินประกัน 10,000 บาท"
-      - "มัดจำ 5000"
-      - "หักเงินประกัน 2,500.50 บาท"
-      - "เงินประกัน 0" -> 0
-
-    หลักการ:
-      - หาเลขตัวแรกที่ดูเหมือนจำนวนเงิน (อนุญาต comma และ .)
-      - ถ้าหาไม่เจอ -> 0
     """
     if not text:
         return 0.0
@@ -109,7 +123,6 @@ def _parse_deposit_amount(text: str | None) -> float:
     if not s:
         return 0.0
 
-    # เอาเลขที่เป็นจำนวนเงินตัวแรก
     m = re.search(r"(-?\d[\d,]*\.?\d*)", s)
     if not m:
         return 0.0
@@ -162,7 +175,7 @@ def project_edit(pid: int):
 def project_view(pid: int):
     project = Project.query.get_or_404(pid)
 
-    materials_total, subs_total, expenses_total, grand_total = _project_totals(project)
+    materials_total, subs_total, expenses_total, advances_total, grand_total = _project_totals(project)
 
     # ✅ ดึงเอกสาร QT ที่ผูกไว้ (ถ้ามี) เพื่อโชว์ปุ่ม BOQ + ปุ่มไปหน้า QT
     qt_doc = None
@@ -178,6 +191,7 @@ def project_view(pid: int):
         materials_total=materials_total,
         subs_total=subs_total,
         expenses_total=expenses_total,
+        advances_total=advances_total,  # ✅ NEW
         grand_total=grand_total,
     )
 
@@ -227,7 +241,7 @@ def vouchers_print(pid: int):
     if doc_type not in ("PV", "RR", "PV_WHT"):
         doc_type = "PV"
 
-    raw_ids = request.form.getlist("ids")  # expect ["M:12","S:5","E:9"]
+    raw_ids = request.form.getlist("ids")  # expect ["M:12","S:5","E:9","A:1"]
     selected_rows = []
     seen = set()
 
@@ -252,7 +266,7 @@ def vouchers_print(pid: int):
         # -----------------------
         if doc_type == "PV_WHT":
             if kind != "S":
-                continue  # ignore ไม่ใช่ผู้รับเหมาช่วง
+                continue
 
             item = next(
                 (
@@ -279,12 +293,13 @@ def vouchers_print(pid: int):
                     "withholding_rate": withholding_rate,
                     "withholding_amount": withholding_amount,
                     "net_pay": net_pay,
+                    "date": getattr(item, "pay_date", None),  # ✅ NEW (optional)
                 }
             )
             continue
 
         # -----------------------
-        # โหมดเดิม: PV / RR
+        # PV / RR
         # -----------------------
         if kind == "M":
             item = next(
@@ -296,9 +311,7 @@ def vouchers_print(pid: int):
                 None,
             )
             if item:
-                amount = _num(getattr(item, "unit_price", 0)) * _num(
-                    getattr(item, "qty", 0)
-                )
+                amount = _num(getattr(item, "unit_price", 0)) * _num(getattr(item, "qty", 0))
                 selected_rows.append(
                     {
                         "kind": "M",
@@ -306,6 +319,8 @@ def vouchers_print(pid: int):
                         "particular": f"{getattr(item, 'item_name', '') or ''} ({getattr(item, 'item_code', '') or ''})",
                         "ref_no": getattr(item, "item_code", "") or "",
                         "amount": amount,
+                        "date": getattr(project, "materials_tax_invoice_date", None),  # ✅ NEW (optional)
+                        "tax_invoice_no": getattr(project, "materials_tax_invoice_no", "") or "",
                     }
                 )
 
@@ -319,9 +334,7 @@ def vouchers_print(pid: int):
                 None,
             )
             if item:
-                pay = _num(getattr(item, "contract_amount", 0)) - _num(
-                    getattr(item, "withholding_amount", 0)
-                )
+                pay = _num(getattr(item, "contract_amount", 0)) - _num(getattr(item, "withholding_amount", 0))
                 selected_rows.append(
                     {
                         "kind": "S",
@@ -330,9 +343,8 @@ def vouchers_print(pid: int):
                         "ref_no": "",
                         "amount": pay,
                         "withholding_rate": _num(getattr(item, "withholding_rate", 0)),
-                        "withholding_amount": _num(
-                            getattr(item, "withholding_amount", 0)
-                        ),
+                        "withholding_amount": _num(getattr(item, "withholding_amount", 0)),
+                        "date": getattr(item, "pay_date", None),  # ✅ NEW
                     }
                 )
 
@@ -353,6 +365,30 @@ def vouchers_print(pid: int):
                         "particular": f"{getattr(item, 'category', '') or 'อื่นๆ'} - {getattr(item, 'title', '') or ''}",
                         "ref_no": "",
                         "amount": _num(getattr(item, "amount", 0)),
+                        "date": getattr(item, "expense_date", None),  # ✅ NEW
+                    }
+                )
+
+        elif kind == "A":
+            # ✅ NEW: เงินเบิกล่วงหน้า
+            advances = getattr(project, "advances", None) or []
+            item = next(
+                (
+                    a
+                    for a in advances
+                    if int(getattr(a, "id", 0) or 0) == iid
+                ),
+                None,
+            )
+            if item:
+                selected_rows.append(
+                    {
+                        "kind": "A",
+                        "title": "เงินเบิกล่วงหน้า",
+                        "particular": getattr(item, "title", "") or "",
+                        "ref_no": "",
+                        "amount": _num(getattr(item, "amount", 0)),
+                        "date": getattr(item, "advance_date", None),  # ✅ NEW
                     }
                 )
 
@@ -379,9 +415,6 @@ def dashboard():
 
     years = list(range(today.year - 5, today.year + 2))
 
-    # ✅ Filter logic:
-    # - ถ้ามี start_date ให้ใช้ start_date เป็นหลัก (ตาม UI)
-    # - ถ้า start_date เป็น None ให้ fallback ใช้ Project.created_at เพื่อไม่ให้ dashboard ว่าง
     if month:
         start_filter = and_(
             Project.start_date.isnot(None),
@@ -403,25 +436,24 @@ def dashboard():
             func.extract("year", Project.created_at) == year,
         )
 
-    # ✅ โหลด sales_doc ด้วย เพราะต้องรวมรายรับ
     q = (
         Project.query.options(joinedload(Project.sales_doc))
         .filter(or_(start_filter, fallback_filter))
     )
     projects = q.all()
 
-    tot_m = tot_s = tot_e = tot_g = 0.0
-    tot_income = 0.0  # ✅ รายรับรวม (QT APPROVED)
+    tot_m = tot_s = tot_e = tot_a = tot_g = 0.0
+    tot_income = 0.0
     rows = []
 
     for p in projects:
-        m, s, e, g = _project_totals(p)
+        m, s, e, a, g = _project_totals(p)
         tot_m += m
         tot_s += s
         tot_e += e
+        tot_a += a
         tot_g += g
 
-        # ✅ รวมรายรับจากใบเสนอราคา QT (sales_doc) เฉพาะที่อนุมัติแล้ว
         doc = getattr(p, "sales_doc", None)
         if doc and getattr(doc, "status", None) == "APPROVED":
             try:
@@ -437,6 +469,7 @@ def dashboard():
                 "materials": m,
                 "subs": s,
                 "expenses": e,
+                "advances": a,  # ✅ NEW
                 "total": g,
             }
         )
@@ -444,14 +477,14 @@ def dashboard():
     rows.sort(key=lambda r: r["total"], reverse=True)
     top5 = rows[:5]
 
-    # ✅ กำไร/ขาดทุนรวม = รายรับรวม - รวมรายจ่ายทั้งหมด
     profit_loss = tot_income - tot_g
 
     class Totals:
-        def __init__(self, m, s, e, g):
+        def __init__(self, m, s, e, a, g):
             self.materials = m
             self.subs = s
             self.expenses = e
+            self.advances = a
             self.grand = g
 
     return render_template(
@@ -459,10 +492,10 @@ def dashboard():
         year=year,
         month=month,
         years=years,
-        totals=Totals(tot_m, tot_s, tot_e, tot_g),
+        totals=Totals(tot_m, tot_s, tot_e, tot_a, tot_g),
         top5=top5,
-        total_income=round(tot_income, 2),  # ✅ เพิ่ม
-        profit_loss=round(profit_loss, 2),  # ✅ เพิ่ม
+        total_income=round(tot_income, 2),
+        profit_loss=round(profit_loss, 2),
     )
 
 
@@ -472,7 +505,7 @@ def dashboard():
 @bp_pages.route("/projects/<int:pid>/export.xlsx")
 def project_export_xlsx(pid: int):
     project = Project.query.get_or_404(pid)
-    materials_total, subs_total, expenses_total, grand_total = _project_totals(project)
+    materials_total, subs_total, expenses_total, advances_total, grand_total = _project_totals(project)
 
     wb = Workbook()
     ws = wb.active
@@ -491,6 +524,7 @@ def project_export_xlsx(pid: int):
             "ค่าวัสดุ",
             "ผู้รับเหมาช่วง",
             "ค่าใช้จ่ายอื่น",
+            "เงินเบิกล่วงหน้า",
             "รวมทั้งหมด",
         ]
     )
@@ -507,6 +541,7 @@ def project_export_xlsx(pid: int):
             materials_total,
             subs_total,
             expenses_total,
+            advances_total,
             grand_total,
         ]
     )
@@ -559,11 +594,11 @@ def dashboard_export_xlsx():
     ws = wb.active
     ws.title = "Dashboard"
 
-    ws.append(["รหัส", "ชื่อโครงการ", "ค่าวัสดุ", "ผู้รับเหมาช่วง", "อื่นๆ", "รวม"])
+    ws.append(["รหัส", "ชื่อโครงการ", "ค่าวัสดุ", "ผู้รับเหมาช่วง", "อื่นๆ", "เงินเบิกล่วงหน้า", "รวม"])
 
     for p in projects:
-        m, s, e, g = _project_totals(p)
-        ws.append([p.code, p.name, m, s, e, g])
+        m, s, e, a, g = _project_totals(p)
+        ws.append([p.code, p.name, m, s, e, a, g])
 
     _excel_styles(ws)
 
@@ -583,7 +618,6 @@ def dashboard_export_xlsx():
 # Finance dashboards (แยก รายรับ / รายจ่าย)
 # ------------------------------------------------------------
 
-# ✅ รองรับ url เก่าที่พิมพ์ผิด เผื่อมีคนกดค้างไว้
 @bp_pages.get("/dashboard/in come")
 def dashboard_income_typo_redirect():
     return redirect(url_for("pages.dashboard_income"))
@@ -656,8 +690,9 @@ def dashboard_income():
 
 @bp_pages.get("/dashboard/expense")
 def dashboard_expense():
-    """Dashboard รายจ่าย (รวม 3 ส่วน: วัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่นๆ)
-    ใช้ created_at ของรายการเป็นตัวอ้างอิงเดือน/ปี (TimestampMixin)
+    """Dashboard รายจ่าย
+    รวม: วัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่นๆ + เงินเบิกล่วงหน้า
+    ใช้ “วันที่จริง” ของรายการ ถ้ามี -> fallback created_at
     """
     today = date.today()
     year = request.args.get("year", type=int) or today.year
@@ -665,6 +700,7 @@ def dashboard_expense():
     mats = MaterialItem.query.all()
     subs = SubcontractorPayment.query.all()
     oth = OtherExpense.query.all()
+    adv = AdvanceExpense.query.all()  # ✅ NEW
 
     month_totals = {m: 0.0 for m in range(1, 13)}
     month_count = {m: 0 for m in range(1, 13)}
@@ -672,6 +708,7 @@ def dashboard_expense():
     total_materials = 0.0
     total_subs = 0.0
     total_other = 0.0
+    total_adv = 0.0
     total_expense = 0.0
 
     def _acc(dt, amount):
@@ -688,24 +725,31 @@ def dashboard_expense():
         total_expense += amt
 
     for it in mats:
-        dt = getattr(it, "created_at", None)
+        dt = _pick_month_date(it, "created_at")
         amt = _num(getattr(it, "unit_price", 0)) * _num(getattr(it, "qty", 0))
         if dt and int(dt.year) == int(year):
             total_materials += amt
         _acc(dt, amt)
 
     for it in subs:
-        dt = getattr(it, "created_at", None)
-        amt = _num(getattr(it, "contract_amount", 0))
+        dt = _pick_month_date(it, "pay_date", "created_at")  # ✅ NEW
+        amt = max(0.0, _num(getattr(it, "contract_amount", 0)) - _num(getattr(it, "withholding_amount", 0)))
         if dt and int(dt.year) == int(year):
             total_subs += amt
         _acc(dt, amt)
 
     for it in oth:
-        dt = getattr(it, "created_at", None)
+        dt = _pick_month_date(it, "expense_date", "created_at")  # ✅ NEW
         amt = _num(getattr(it, "amount", 0))
         if dt and int(dt.year) == int(year):
             total_other += amt
+        _acc(dt, amt)
+
+    for it in adv:
+        dt = _pick_month_date(it, "advance_date", "created_at")  # ✅ NEW
+        amt = _num(getattr(it, "amount", 0))
+        if dt and int(dt.year) == int(year):
+            total_adv += amt
         _acc(dt, amt)
 
     labels = [
@@ -727,10 +771,10 @@ def dashboard_expense():
         total_materials=round(total_materials, 2),
         total_subs=round(total_subs, 2),
         total_other=round(total_other, 2),
+        total_advances=round(total_adv, 2),  # ✅ NEW (ถ้า template ยังไม่รับ ก็ไม่พัง)
     )
 
 
-# เผื่อคนเข้า url เก่า
 @bp_pages.get("/dashboard/finance")
 def dashboard_finance_redirect():
     return redirect(url_for("pages.dashboard_income"))
@@ -741,23 +785,6 @@ def dashboard_finance_redirect():
 # ------------------------------------------------------------
 @bp_pages.get("/deposits/notifications")
 def deposit_notifications():
-    """
-    แจ้งเตือนครบกำหนดคืนเงินประกัน
-
-    แสดง:
-      - ชื่อลูกค้า
-      - โครงการ
-      - ยอดเงินประกัน
-      - วันสิ้นสุดประกัน
-      - สถานะ (ยังไม่รับคืน / ได้รับคืนแล้ว)
-      - ปุ่มรับคืนเงินประกัน
-
-    สรุปด้านบน:
-      - เงินมัดจำที่ยังไม่ได้รับคืนรวมเท่าไหร่
-      - เงินมัดจำที่รับคืนแล้วรวมเท่าไหร่
-      - โครงการที่ยังไม่เก็บเงินประกัน (เงินประกัน = 0) มีกี่โครงการ
-      - โครงการที่เก็บเงินประกันคืนแล้วมีกี่โครงการ
-    """
     q = (request.args.get("q") or "").strip()
 
     query = Project.query.options(joinedload(Project.sales_doc))
@@ -782,23 +809,19 @@ def deposit_notifications():
     for p in projects:
         doc = getattr(p, "sales_doc", None)
 
-        # ✅ ชื่อลูกค้า: Project ก่อน / fallback จาก doc
         customer_name = (
             (getattr(p, "customer_name", None) or "").strip()
             or (getattr(doc, "customer_name", None) if doc else None)
             or "-"
         )
 
-        # ✅ เงินประกัน: ดึงจาก SalesDoc.deposit_note (เป็นข้อความจากฟอร์ม QT)
         deposit_note = getattr(doc, "deposit_note", None) if doc else None
         dep_amount_f = _parse_deposit_amount(deposit_note)
 
-        # ✅ วันสิ้นสุดประกัน: doc.warranty_end_date (ตามโมเดล SalesDoc)
         end_date = getattr(doc, "warranty_end_date", None) if doc else None
 
         returned = bool(getattr(p, "deposit_returned", False))
 
-        # ✅ KPI
         if dep_amount_f <= 0:
             cnt_no_deposit += 1
         else:
@@ -821,7 +844,6 @@ def deposit_notifications():
         )
 
     return render_template(
-        # ✅ ให้ตรงกับไฟล์ที่คุณสร้างไว้
         "notifications/deposits.html",
         q=q,
         rows=rows,
@@ -834,15 +856,12 @@ def deposit_notifications():
 
 @bp_pages.post("/deposits/<int:pid>/return")
 def deposit_mark_returned(pid: int):
-    """กดรับคืนเงินประกัน: เปลี่ยนสถานะเป็นรับคืนแล้ว"""
     p = Project.query.get_or_404(pid)
     p.deposit_returned = True
 
-    # ✅ ถ้า field เป็น DateTime ให้ใช้ datetime.utcnow()
     try:
         p.deposit_returned_at = datetime.utcnow()
     except Exception:
-        # fallback เผื่อเป็น Date
         p.deposit_returned_at = date.today()
 
     db.session.commit()

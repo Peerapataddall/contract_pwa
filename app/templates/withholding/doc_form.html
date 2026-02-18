@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% set title = "สร้าง/แก้ไขเอกสารหัก ณ ที่จ่าย" %}
+
+{% block content %}
+<div class="card">
+  <div class="section-title">
+    {% if doc %}แก้ไข{% else %}สร้าง{% endif %} เอกสารหัก ณ ที่จ่าย (ภงด 3/53)
+    <div class="muted" style="font-size:12px;margin-top:4px;">1 ใบ = 1 รายการ</div>
+  </div>
+
+  <form method="post" class="mt-12" style="display:grid;gap:12px;max-width:720px;">
+
+    <div style="display:grid;grid-template-columns: 1fr 1fr;gap:12px;">
+      <div>
+        <label>ฟอร์ม</label>
+        <select class="input" name="form_type">
+          <option value="PND53" {% if doc and doc.form_type=="PND53" %}selected{% endif %}>ภงด 53</option>
+          <option value="PND3"  {% if doc and doc.form_type=="PND3" %}selected{% endif %}>ภงด 3</option>
+        </select>
+      </div>
+
+      <div>
+        <label>วันที่จ่ายเงิน</label>
+        <input class="input" type="date" name="payment_date"
+               value="{{ (doc.payment_date|string) if doc else '' }}">
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns: 1fr 1fr;gap:12px;">
+      <div>
+        <label>ประเภทผู้ถูกหัก</label>
+        <select class="input" name="payee_kind" id="payee_kind">
+          <option value="PERSON" {% if doc and doc.payee_kind=="PERSON" %}selected{% endif %}>บุคคลธรรมดา</option>
+          <option value="ENTITY" {% if doc and doc.payee_kind=="ENTITY" %}selected{% endif %}>นิติบุคคล</option>
+        </select>
+      </div>
+
+      <div>
+        <label>ผู้ถูกหัก (เลือกตามประเภท)</label>
+
+        <select class="input" name="payee_person_id" id="payee_person_id">
+          <option value="">— เลือกบุคคลธรรมดา —</option>
+          {% for p in people %}
+            <option value="{{ p.id }}" {% if doc and doc.payee_person_id==p.id %}selected{% endif %}>
+              {{ p.full_name }} ({{ p.tax_id or '-' }})
+            </option>
+          {% endfor %}
+        </select>
+
+        <select class="input" name="payee_entity_id" id="payee_entity_id" style="display:none;margin-top:8px;">
+          <option value="">— เลือกนิติบุคคล —</option>
+          {% for e in entities %}
+            <option value="{{ e.id }}" {% if doc and doc.payee_entity_id==e.id %}selected{% endif %}>
+              {{ e.company_name }} ({{ e.tax_id or '-' }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns: 1fr 1fr;gap:12px;">
+      <div>
+        <label>ประเภทเงินได้</label>
+        <input class="input" name="income_type" placeholder="เช่น ค่าบริการ / ค่าเช่า / ค่าจ้างทำของ"
+               value="{{ doc.income_type if doc else '' }}">
+      </div>
+      <div>
+        <label>รายละเอียด</label>
+        <input class="input" name="description" placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
+               value="{{ doc.description if doc else '' }}">
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns: 1fr 1fr 1fr;gap:12px;">
+      <div>
+        <label>ฐานภาษี (บาท)</label>
+        <input class="input" type="number" step="0.01" name="base_amount"
+               value="{{ doc.base_amount if doc else 0 }}">
+      </div>
+      <div>
+        <label>อัตราหัก (%)</label>
+        <input class="input" type="number" step="0.01" name="wht_rate"
+               value="{{ doc.wht_rate if doc else 3 }}">
+      </div>
+      <div>
+        <label>ยอดหัก (บาท)</label>
+        <input class="input" type="number" step="0.01" name="wht_amount"
+               value="{{ doc.wht_amount if doc else 0 }}">
+        <div class="muted" style="font-size:12px;margin-top:4px;">ถ้าไม่กรอก ระบบจะคำนวณให้จากฐาน x %</div>
+      </div>
+    </div>
+
+    <div>
+      <label>หมายเหตุ</label>
+      <textarea class="input" name="note">{{ doc.note if doc else '' }}</textarea>
+    </div>
+
+    {% if doc %}
+      <label style="display:flex;gap:8px;align-items:center;">
+        <input type="checkbox" name="is_active" {% if doc.is_active %}checked{% endif %}>
+        ใช้งานอยู่
+      </label>
+    {% endif %}
+
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" type="submit">บันทึก</button>
+      <a class="btn" href="{{ url_for('withholding_docs.docs_list') }}">ยกเลิก</a>
+      {% if doc %}
+        <a class="btn" href="{{ url_for('withholding_docs.docs_pdf', doc_id=doc.id) }}">พิมพ์ PDF</a>
+      {% endif %}
+    </div>
+
+  </form>
+</div>
+
+<script>
+(function(){
+  const kind = document.getElementById('payee_kind');
+  const personSel = document.getElementById('payee_person_id');
+  const entSel = document.getElementById('payee_entity_id');
+
+  function sync(){
+    const v = kind.value;
+    if(v === 'PERSON'){
+      personSel.style.display = '';
+      entSel.style.display = 'none';
+      entSel.value = '';
+    }else{
+      personSel.style.display = 'none';
+      entSel.style.display = '';
+      personSel.value = '';
+    }
+  }
+  if(kind){ kind.addEventListener('change', sync); sync(); }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% set title = "บุคคลธรรมดา" %}
+
+{% block content %}
+
+<div class="card">
+  <div class="section-title" style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+    <div>
+      <div style="font-size:18px; font-weight:800;">
+        {% if person %}แก้ไข{% else %}เพิ่ม{% endif %} บุคคลธรรมดา
+      </div>
+      <div class="muted" style="opacity:.8; font-size:12px; margin-top:4px;">
+        ใช้เก็บข้อมูล “ลูกจ้าง” หรือ “ผู้รับเหมาช่วง” เพื่อออกหนังสือรับรองการหักภาษี ณ ที่จ่าย
+      </div>
+    </div>
+    <a class="btn" href="{{ url_for('withholding.people_list') }}">← กลับ</a>
+  </div>
+
+  <form method="post" class="mt-12" style="display:grid; gap:14px; max-width:920px;">
+
+    <!-- Section: Basic -->
+    <div style="display:grid; gap:12px; padding:14px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.02);">
+      <div style="font-weight:800; opacity:.9;">ข้อมูลหลัก</div>
+
+      <div style="display:grid; grid-template-columns: 1.2fr .8fr; gap:12px;">
+        <div>
+          <label style="font-size:12px; opacity:.8;">ชื่อ-นามสกุล <span style="color:#ff6b6b;">*</span></label>
+          <input class="input" type="text" name="full_name"
+                 value="{{ person.full_name if person else '' }}"
+                 placeholder="เช่น นายพีรภัทร ใสสกุล" required>
+        </div>
+
+        <div>
+          <label style="font-size:12px; opacity:.8;">ประเภท</label>
+          <select class="input" name="person_type">
+            <option value="EMPLOYEE" {% if person and person.person_type=="EMPLOYEE" %}selected{% endif %}>ลูกจ้าง</option>
+            <option value="SUBCONTRACTOR" {% if person and person.person_type=="SUBCONTRACTOR" %}selected{% endif %}>ผู้รับเหมาช่วง</option>
+          </select>
+          <div class="muted" style="font-size:11px; opacity:.7; margin-top:6px;">
+            ระบบจะแสดงประเภทนี้หลังชื่อในลิสต์รายชื่อ
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div>
+          <label style="font-size:12px; opacity:.8;">เลขบัตรประชาชน</label>
+          <input class="input" type="text" name="tax_id"
+                 value="{{ person.tax_id if person else '' }}"
+                 inputmode="numeric"
+                 placeholder="13 หลัก (ถ้ามี)">
+        </div>
+
+        <div>
+          <label style="font-size:12px; opacity:.8;">โทรศัพท์</label>
+          <input class="input" type="text" name="phone"
+                 value="{{ person.phone if person else '' }}"
+                 placeholder="เช่น 08x-xxx-xxxx">
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Address & Note -->
+    <div style="display:grid; gap:12px; padding:14px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.02);">
+      <div style="font-weight:800; opacity:.9;">ที่อยู่ / หมายเหตุ</div>
+
+      <div>
+        <label style="font-size:12px; opacity:.8;">ที่อยู่</label>
+        <textarea class="input" name="address" rows="3"
+                  placeholder="ที่อยู่สำหรับออกเอกสาร">{{ person.address if person else '' }}</textarea>
+      </div>
+
+      <div>
+        <label style="font-size:12px; opacity:.8;">หมายเหตุ</label>
+        <textarea class="input" name="note" rows="2"
+                  placeholder="บันทึกเพิ่มเติม (ถ้ามี)">{{ person.note if person else '' }}</textarea>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <a class="btn" href="{{ url_for('withholding.people_list') }}">ยกเลิก</a>
+      <button class="btn btn-primary" type="submit">บันทึก</button>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}

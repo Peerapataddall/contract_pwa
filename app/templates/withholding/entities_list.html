@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set title = "นิติบุคคล (ข้อมูลหักภาษี)" %}
+
+{% block content %}
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+    <div>
+      <div class="section-title">นิติบุคคล</div>
+      <div class="muted">ใช้สำหรับ ภงด 3 / ภงด 53</div>
+    </div>
+
+    <div>
+      <a class="btn btn-primary" href="{{ url_for('withholding.entities_form') }}">
+        + เพิ่มนิติบุคคล
+      </a>
+    </div>
+  </div>
+
+  <form method="get" class="mt-12" style="display:flex; gap:8px;">
+    <input class="input" type="text" name="q" value="{{ q or '' }}" placeholder="ค้นหาชื่อบริษัท / เลขประจำตัวผู้เสียภาษี">
+    <button class="btn" type="submit">ค้นหา</button>
+  </form>
+</div>
+
+<div class="card mt-12">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ชื่อบริษัท</th>
+        <th>เลขผู้เสียภาษี</th>
+        <th>เชื่อมกับลูกค้า</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b>{{ r.company_name }}</b></td>
+        <td>{{ r.tax_id or "-" }}</td>
+        <td>{{ r.customer.name if r.customer else "-" }}</td>
+        <td>
+          <a class="btn btn-sm" href="{{ url_for('withholding.entities_form', eid=r.id) }}">
+            แก้ไข
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

@@ -143,6 +143,24 @@
 </style>
 {% endif %}
 
+{# =========================================================
+   ✅ Helpers (format + pick date)
+   - รองรับ row.kind ใหม่ "A" (เงินเบิกล่วงหน้า)
+   - ส่งต่อ meta เพิ่มให้ template ย่อย (ถ้ามีส่วนไหนใช้)
+   ========================================================= #}
+{% macro _fmt_date(d) -%}
+  {%- if d is none -%}
+    {{ "" }}
+  {%- else -%}
+    {# d อาจเป็น date หรือ string #}
+    {%- if d.__class__.__name__ in ["date","datetime"] -%}
+      {{ d.strftime("%Y-%m-%d") }}
+    {%- else -%}
+      {{ d|string }}
+    {%- endif -%}
+  {%- endif -%}
+{%- endmacro %}
+
 <div class="card no-print" style="display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
   <div>
     <div class="section-title">
@@ -158,6 +176,18 @@
     <div class="muted">โครงการ: {{ project.code }} — {{ project.name }}</div>
     {% if rows %}
       <div class="muted">จำนวนรายการที่เลือก: <b>{{ rows|length }}</b></div>
+
+      {# ✅ แสดงสรุปประเภทที่พิมพ์ (ช่วย debug เวลาเลือกหลายชนิด) #}
+      {% set ns = namespace(m=0, s=0, e=0, a=0) %}
+      {% for r in rows %}
+        {% if (r.kind or '') == 'M' %}{% set ns.m = ns.m + 1 %}{% endif %}
+        {% if (r.kind or '') in ['S','S_WHT'] %}{% set ns.s = ns.s + 1 %}{% endif %}
+        {% if (r.kind or '') == 'E' %}{% set ns.e = ns.e + 1 %}{% endif %}
+        {% if (r.kind or '') == 'A' %}{% set ns.a = ns.a + 1 %}{% endif %}
+      {% endfor %}
+      <div class="muted" style="font-size:12px; opacity:.8;">
+        ประเภท: วัสดุ {{ ns.m }} · ผู้รับเหมา {{ ns.s }} · อื่นๆ {{ ns.e }} · เบิกล่วงหน้า {{ ns.a }}
+      </div>
     {% endif %}
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -192,7 +222,18 @@
 
         {# เผื่อไฟล์ print_pv.html ใช้ตัวแปรมาตรฐาน #}
         {% set doc_type = _dt %}
-        {% set doc_date = (today.isoformat() if today else "") %}
+
+        {# ✅ doc_date: ใช้วันที่ของรายการ ถ้ามี (S: pay_date, E: expense_date, A: advance_date, M: materials_tax_invoice_date)
+           - ถ้าไม่มี ค่อย fallback วันนี้
+        #}
+        {% set _row_date = (r.date if r.date is defined else None) %}
+        {% if not _row_date %}
+          {% if (r.kind or '') == 'M' and r.tax_invoice_date is defined %}
+            {% set _row_date = r.tax_invoice_date %}
+          {% endif %}
+        {% endif %}
+        {% set doc_date = _fmt_date(_row_date or today) %}
+
         {% set project_code = project.code %}
         {% set project_name = project.name %}
 
@@ -207,6 +248,13 @@
         {% else %}
           {% set total_amount = (r.amount or 0) %}
         {% endif %}
+
+        {# ✅ ส่งต่อ meta บางตัวให้ template ย่อย (ถ้าเขาใช้)
+           - kind: M/S/E/A
+           - tax_invoice_no: เฉพาะวัสดุ (ถ้ามี)
+        #}
+        {% set row_kind = (r.kind or "") %}
+        {% set tax_invoice_no = (r.tax_invoice_no if r.tax_invoice_no is defined else "") %}
 
         {% include "projects/vouchers/print_pv.html" %}
       </div>
@@ -231,13 +279,26 @@
           {% set _rows_one = [r] %}
           {% set rows = _rows_one %}
 
-          {# ✅ ตั้ง total_amount ต่อรายการ เพื่อให้ตัวสะกดจำนวนเงินถูกต้อง #}
+          {# ✅ total_amount ต่อรายการ เพื่อให้ตัวสะกดจำนวนเงินถูกต้อง #}
           {% set total_amount = (r.amount or 0) %}
 
           {% set doc_type = _dt %}
-          {% set doc_date = (today.isoformat() if today else "") %}
+
+          {# ✅ doc_date: ใช้วันที่ของรายการ ถ้ามี -> fallback วันนี้ #}
+          {% set _row_date = (r.date if r.date is defined else None) %}
+          {% if not _row_date %}
+            {% if (r.kind or '') == 'M' and r.tax_invoice_date is defined %}
+              {% set _row_date = r.tax_invoice_date %}
+            {% endif %}
+          {% endif %}
+          {% set doc_date = _fmt_date(_row_date or today) %}
+
           {% set project_code = project.code %}
           {% set project_name = project.name %}
+
+          {# meta ส่งต่อให้ template ย่อย (ถ้ามีใช้) #}
+          {% set row_kind = (r.kind or "") %}
+          {% set tax_invoice_no = (r.tax_invoice_no if r.tax_invoice_no is defined else "") %}
 
           {% include "projects/vouchers/print_receipt_cert.html" %}
         </div>

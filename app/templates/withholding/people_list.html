@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set title = "บุคคลธรรมดา (ข้อมูลหักภาษี)" %}
+
+{% block content %}
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+    <div>
+      <div class="section-title">บุคคลธรรมดา</div>
+      <div class="muted">ลูกจ้าง / ผู้รับเหมาช่วง</div>
+    </div>
+
+    <div>
+      <a class="btn btn-primary" href="{{ url_for('withholding.people_form') }}">
+        + เพิ่มบุคคล
+      </a>
+    </div>
+  </div>
+
+  <form method="get" class="mt-12" style="display:flex; gap:8px;">
+    <input class="input" type="text" name="q" value="{{ q or '' }}" placeholder="ค้นหาชื่อ / เลขบัตรประชาชน">
+    <button class="btn" type="submit">ค้นหา</button>
+  </form>
+</div>
+
+<div class="card mt-12">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>ชื่อ</th>
+        <th>ประเภท</th>
+        <th>เลขบัตรประชาชน</th>
+        <th>โทรศัพท์</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><b>{{ r.full_name }}</b></td>
+        <td>
+          {% if r.person_type == "EMPLOYEE" %}
+            ลูกจ้าง
+          {% else %}
+            ผู้รับเหมาช่วง
+          {% endif %}
+        </td>
+        <td>{{ r.tax_id or "-" }}</td>
+        <td>{{ r.phone or "-" }}</td>
+        <td>
+          <a class="btn btn-sm" href="{{ url_for('withholding.people_form', pid=r.id) }}">
+            แก้ไข
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

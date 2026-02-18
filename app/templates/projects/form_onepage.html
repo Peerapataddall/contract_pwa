@@ -20,15 +20,15 @@
     flex-wrap:wrap;
     justify-content:flex-end;
   }
-  .btn{ min-height:44px; }            /* ปุ่มแตะง่าย */
-  .input{ min-height:44px; }          /* ช่องแตะง่าย */
+  .btn{ min-height:44px; }
+  .input{ min-height:44px; }
   .btn.btn-small{ min-height:40px; padding:8px 12px; }
   .table-wrap{
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
     border-radius: 14px;
   }
-  .table{ min-width: 980px; }         /* กันตารางบีบแคบเกิน */
+  .table{ min-width: 1120px; } /* เพิ่มความกว้าง เพราะเพิ่ม 2 คอลัมน์ */
   .section-head{
     display:flex;
     align-items:center;
@@ -43,12 +43,11 @@
     justify-content:space-between;
     gap:12px;
   }
-  /* ทำให้กริดบนจอเล็กเป็นคอลัมน์เดียว */
   @media (max-width: 860px){
     .grid.grid-2{ grid-template-columns: 1fr !important; }
     .grid.grid-3{ grid-template-columns: 1fr !important; }
     .right{ text-align:left !important; }
-    .table{ min-width: 860px; }
+    .table{ min-width: 980px; }
     .pagehead h1{ font-size: 22px; }
   }
 </style>
@@ -120,7 +119,6 @@
   </div>
 </div>
 
-<!-- ✅ ปรับเป็นเรียงแนวตั้งเต็มความกว้าง -->
 <div class="mt-12">
 
   <!-- วัสดุ -->
@@ -128,7 +126,7 @@
     <div class="section-head">
       <div>
         <div class="section-title">วัสดุ / ของที่ใช้ในโครงการ</div>
-        <div class="muted">ใส่ยี่ห้อ / รหัส / ราคา / จำนวน (เพิ่มแถวได้)</div>
+        <div class="muted">ใส่ยี่ห้อ / รหัส / ราคา / จำนวน / ใบกำกับภาษี (เพิ่มแถวได้)</div>
       </div>
       <button class="btn btn-small" type="button" onclick="Materials.addRow()">➕ เพิ่มแถว</button>
     </div>
@@ -140,6 +138,8 @@
             <th>ยี่ห้อ</th>
             <th>รหัส</th>
             <th>ชื่อ</th>
+            <th>ใบกำกับเลขที่</th>
+            <th>วันที่ใบกำกับ</th>
             <th class="right">ราคา/หน่วย</th>
             <th class="right">จำนวน</th>
             <th class="right">รวม</th>
@@ -173,6 +173,7 @@
         <thead>
           <tr>
             <th>ชื่อ</th>
+            <th>วันที่</th>
             <th class="right">ว่าจ้าง</th>
             <th class="right">% หัก ณ ที่จ่าย</th>
             <th class="right">หัก (บาท)</th>
@@ -208,6 +209,7 @@
           <tr>
             <th>หมวด</th>
             <th>รายการ</th>
+            <th>วันที่</th>
             <th class="right">จำนวนเงิน</th>
             <th></th>
           </tr>
@@ -224,12 +226,44 @@
     </div>
   </div>
 
+  <!-- เงินเบิกล่วงหน้า -->
+  <div class="card mt-12">
+    <div class="section-head">
+      <div>
+        <div class="section-title">เงินเบิกล่วงหน้า</div>
+        <div class="muted">กรอกว่าเบิกค่าอะไร / วันที่ / ยอดเงิน (เพิ่มแถวได้)</div>
+      </div>
+      <button class="btn btn-small" type="button" onclick="Advances.addRow()">➕ เพิ่มแถว</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table" id="advances_table">
+        <thead>
+          <tr>
+            <th>รายการ</th>
+            <th>วันที่</th>
+            <th class="right">จำนวนเงิน</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="totals">
+      <div class="totals__row">
+        <div>รวมเงินเบิกล่วงหน้า</div>
+        <div class="mono" id="advances_total">0.00</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <div class="card mt-12">
   <div class="grid grid-3">
     <div>
-      <div class="label">รวมทั้งหมด (ค่าวัสดุ + ผู้รับเหมาช่วง + อื่นๆ)</div>
+      <div class="label">รวมทั้งหมด (ค่าวัสดุ + ผู้รับเหมาช่วง + อื่นๆ + เงินเบิกล่วงหน้า)</div>
       <div class="mono big" id="grand_total">0.00</div>
     </div>
     <div class="muted">
@@ -259,6 +293,7 @@
   "end_date": {{ (project.end_date.isoformat() if project.end_date else "")|tojson }},
   "work_days": {{ (project.work_days or 0)|tojson }},
   "status": {{ (project.status or "IN_PROGRESS")|tojson }},
+
   "materials": [
     {% if project.materials %}
       {% for m in project.materials %}
@@ -267,6 +302,8 @@
         "item_code": {{ (m.item_code or "")|tojson }},
         "item_name": {{ (m.item_name or "")|tojson }},
         "unit": {{ (m.unit or "")|tojson }},
+        "tax_invoice_no": {{ (m.tax_invoice_no or "")|tojson }},
+        "tax_invoice_date": {{ (m.tax_invoice_date.isoformat() if m.tax_invoice_date else "")|tojson }},
         "unit_price": {{ ((m.unit_price or 0)|float)|tojson }},
         "qty": {{ ((m.qty or 0)|float)|tojson }},
         "note": {{ (m.note or "")|tojson }}
@@ -279,6 +316,7 @@
       {% for s in project.subcontractors %}
       {
         "vendor_name": {{ (s.vendor_name or "")|tojson }},
+        "pay_date": {{ (s.pay_date.isoformat() if s.pay_date else "")|tojson }},
         "contract_amount": {{ ((s.contract_amount or 0)|float)|tojson }},
         "withholding_rate": {{ ((s.withholding_rate or 0)|float)|tojson }},
         "withholding_amount": {{ ((s.withholding_amount or 0)|float)|tojson }},
@@ -293,8 +331,21 @@
       {
         "category": {{ (e.category or "")|tojson }},
         "title": {{ (e.title or "")|tojson }},
+        "expense_date": {{ (e.expense_date.isoformat() if e.expense_date else "")|tojson }},
         "amount": {{ ((e.amount or 0)|float)|tojson }},
         "note": {{ (e.note or "")|tojson }}
+      }{{ "," if not loop.last else "" }}
+      {% endfor %}
+    {% endif %}
+  ],
+  "advances": [
+    {% if project.advances %}
+      {% for a in project.advances %}
+      {
+        "title": {{ (a.title or "")|tojson }},
+        "advance_date": {{ (a.advance_date.isoformat() if a.advance_date else "")|tojson }},
+        "amount": {{ ((a.amount or 0)|float)|tojson }},
+        "note": {{ (a.note or "")|tojson }}
       }{{ "," if not loop.last else "" }}
       {% endfor %}
     {% endif %}
@@ -312,9 +363,11 @@
   "end_date": "",
   "work_days": 0,
   "status": "IN_PROGRESS",
+
   "materials": [],
   "subcontractors": [],
-  "expenses": []
+  "expenses": [],
+  "advances": []
 }
 {% endif %}
 </script>

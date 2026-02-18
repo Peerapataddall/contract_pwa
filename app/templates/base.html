@@ -72,7 +72,7 @@
     .topbar--hero{
       position: sticky;
       top: 0;
-      z-index: 60;
+      z-index: 50;
 
       /* ✅ glass effect */
       background: rgba(11, 18, 32, .55);
@@ -140,19 +140,30 @@
     }
 
     /* ✅ ให้เมนูอยู่เหนือ topbar */
-.drawer-backdrop{
-  z-index: 120;   /* สูงกว่า topbar (60) */
-}
+    .drawer-backdrop{
+      z-index: 120;   /* สูงกว่า topbar */
+    }
+    .drawer{
+      z-index: 130;   /* สูงกว่า backdrop */
+    }
 
-.drawer{
-  z-index: 130;   /* สูงกว่า backdrop */
-}
-
-/* (ไม่บังคับ) ถ้าบางที topbar ยังทับ ให้ลดมันลง */
-.topbar--hero{
-  z-index: 50;
-}
-
+    /* ===== Drawer group / submenu (ใช้ inline style ได้น้อยลง) ===== */
+    .drawer__group{
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,.06);
+    }
+    .drawer__groupTitle{
+      font-size: 12px;
+      letter-spacing: .2px;
+      color: rgba(230,238,252,.65);
+      margin: 6px 10px 6px;
+    }
+    .drawer__sublink{
+      margin-left: 18px;
+      padding-left: 10px;
+      border-left: 2px solid rgba(255,255,255,.08);
+    }
   </style>
 
   {% block head %}{% endblock %}
@@ -212,6 +223,30 @@
         <span class="drawer__emoji">👥</span>
         <span>ลูกค้า</span>
       </a>
+
+      <!-- ✅ NEW: ข้อมูลหักภาษี -->
+      {% set _wht_open = request.path.startswith('/withholding') %}
+      <div class="drawer__group">
+        <div class="drawer__groupTitle">ข้อมูลหักภาษี</div>
+
+        <a class="drawer__link drawer__sublink {{ 'is-active' if request.path.startswith('/withholding/people') else '' }}"
+           href="{{ url_for('withholding.people_list') }}">
+          <span class="drawer__emoji">👤</span>
+          <span>บุคคลธรรมดา</span>
+        </a>
+
+        <a class="drawer__link drawer__sublink {{ 'is-active' if request.path.startswith('/withholding/entities') else '' }}"
+           href="{{ url_for('withholding.entities_list') }}">
+          <span class="drawer__emoji">🏛️</span>
+          <span>นิติบุคคล</span>
+        </a>
+        <a class="drawer__link {{ 'is-active' if request.path.startswith('/withholding/docs') else '' }}"
+            href="{{ url_for('withholding_docs.docs_list') }}">
+           <span class="drawer__emoji">🧾</span>
+            <span>ออกเอกสารหักภาษี</span>
+        </a>
+
+      </div>
 
       <a class="drawer__link {{ 'is-active' if request.path.startswith('/settings/company') else '' }}" href="{{ url_for('settings.company_settings') }}">
         <span class="drawer__emoji">🏢</span>

@@ -15,6 +15,9 @@ class TimestampMixin:
     )
 
 
+# =========================================================
+# Customers
+# =========================================================
 class Customer(db.Model, TimestampMixin):
     __tablename__ = "customers"
 
@@ -35,6 +38,9 @@ class Customer(db.Model, TimestampMixin):
         return f"<Customer {self.id} {self.name!r}>"
 
 
+# =========================================================
+# Projects
+# =========================================================
 class Project(db.Model, TimestampMixin):
     __tablename__ = "projects"
 
@@ -54,14 +60,12 @@ class Project(db.Model, TimestampMixin):
 
     # -------------------------------------------------
     # ✅ Deposit return tracking (คืนเงินประกัน)
-    # - ใช้สำหรับหน้า "แจ้งเตือนครบกำหนดคืนเงินประกัน"
     # -------------------------------------------------
     deposit_returned = db.Column(db.Boolean, nullable=False, default=False)
     deposit_returned_at = db.Column(db.Date, nullable=True)
 
     # -------------------------------------------------
-    # ✅ NEW: link Project <-> QT (SalesDoc)
-    # - เมื่ออนุมัติ QT จะสร้าง Project และผูกด้วย sales_doc_id
+    # ✅ link Project <-> QT (SalesDoc) one-to-one
     # -------------------------------------------------
     sales_doc_id = db.Column(
         db.Integer,
@@ -71,11 +75,17 @@ class Project(db.Model, TimestampMixin):
         index=True,
     )
 
-    # ✅ NEW: เก็บ BOQ ไว้ที่ Project ด้วย (ง่ายต่อการโชว์/ดาวน์โหลดในหน้าโครงการ)
+    # ✅ BOQ paths on Project
     boq_excel_path = db.Column(db.String(255), nullable=True)
     boq_pdf_path = db.Column(db.String(255), nullable=True)
 
-    # ความสัมพันธ์: Project.sales_doc -> SalesDoc และ SalesDoc.project -> Project (one-to-one)
+    # -------------------------------------------------
+    # ✅ NOTE: ย้าย “อ้างอิงใบกำกับภาษีค่าวัสดุ” ไปอยู่ใน MaterialItem แล้ว
+    # - เดิมอยู่ที่:
+    #   materials_tax_invoice_no / materials_tax_invoice_date
+    # -------------------------------------------------
+
+    # relationships
     sales_doc = db.relationship(
         "SalesDoc",
         backref=db.backref("project", uselist=False),
@@ -105,6 +115,15 @@ class Project(db.Model, TimestampMixin):
         order_by="OtherExpense.id",
     )
 
+    # ✅ เงินเบิกล่วงหน้า
+    advances = db.relationship(
+        "AdvanceExpense",
+        backref="project",
+        lazy=True,
+        cascade="all, delete-orphan",
+        order_by="AdvanceExpense.id",
+    )
+
     __table_args__ = (
         Index("ix_projects_code", "code"),
         Index("ix_projects_name", "name"),
@@ -118,7 +137,7 @@ class Project(db.Model, TimestampMixin):
 
     @property
     def total_subcontractor_cost(self) -> float:
-        # จ่ายจริง = ว่าจ้าง - หัก ณ ที่จ่าย (ตามจำนวนเงินที่คีย์)
+        # จ่ายจริง = ว่าจ้าง - หัก ณ ที่จ่าย
         return float(sum((s.payable_amount or 0) for s in self.subcontractors))
 
     @property
@@ -126,12 +145,22 @@ class Project(db.Model, TimestampMixin):
         return float(sum((e.amount or 0) for e in self.expenses))
 
     @property
+    def total_advance_expense(self) -> float:
+        return float(sum((a.amount or 0) for a in self.advances))
+
+    @property
     def total_cost(self) -> float:
         return float(
-            self.total_material_cost + self.total_subcontractor_cost + self.total_other_expense
+            self.total_material_cost
+            + self.total_subcontractor_cost
+            + self.total_other_expense
+            + self.total_advance_expense
         )
 
 
+# =========================================================
+# Material items
+# =========================================================
 class MaterialItem(db.Model, TimestampMixin):
     __tablename__ = "material_items"
 
@@ -143,6 +172,10 @@ class MaterialItem(db.Model, TimestampMixin):
     item_name = db.Column(db.String(200), nullable=True)
     unit = db.Column(db.String(40), nullable=True)
 
+    # ✅ NEW: อ้างอิงใบกำกับภาษี “ต่อรายการย่อย”
+    tax_invoice_no = db.Column(db.String(60), nullable=True)
+    tax_invoice_date = db.Column(db.Date, nullable=True)
+
     unit_price = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     qty = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     note = db.Column(db.String(200), nullable=True)
@@ -150,6 +183,9 @@ class MaterialItem(db.Model, TimestampMixin):
     __table_args__ = (
         CheckConstraint("unit_price >= 0", name="ck_material_unit_price_nonneg"),
         CheckConstraint("qty >= 0", name="ck_material_qty_nonneg"),
+        Index("ix_material_items_project_id", "project_id"),
+        Index("ix_material_items_tax_invoice_no", "tax_invoice_no"),
+        Index("ix_material_items_tax_invoice_date", "tax_invoice_date"),
     )
 
     @property
@@ -157,6 +193,9 @@ class MaterialItem(db.Model, TimestampMixin):
         return float((self.unit_price or 0) * (self.qty or 0))
 
 
+# =========================================================
+# Subcontractor payments
+# =========================================================
 class SubcontractorPayment(db.Model, TimestampMixin):
     __tablename__ = "subcontractor_payments"
 
@@ -164,9 +203,13 @@ class SubcontractorPayment(db.Model, TimestampMixin):
     project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
 
     vendor_name = db.Column(db.String(200), nullable=False)
+
+    # ✅ วันที่จ่าย
+    pay_date = db.Column(db.Date, nullable=True)
+
     contract_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
-    # ภาษีหัก ณ ที่จ่าย (เปอร์เซ็นต์) เช่น 3
+    # ภาษีหัก ณ ที่จ่าย (%)
     withholding_rate = db.Column(db.Numeric(6, 2), nullable=False, default=0)
     withholding_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
@@ -184,6 +227,9 @@ class SubcontractorPayment(db.Model, TimestampMixin):
         return float((self.contract_amount or 0) - (self.withholding_amount or 0))
 
 
+# =========================================================
+# Other expenses
+# =========================================================
 class OtherExpense(db.Model, TimestampMixin):
     __tablename__ = "other_expenses"
 
@@ -191,6 +237,10 @@ class OtherExpense(db.Model, TimestampMixin):
     project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
 
     category = db.Column(db.String(80), nullable=False, default="อื่นๆ")
+
+    # ✅ วันที่ค่าใช้จ่าย
+    expense_date = db.Column(db.Date, nullable=True)
+
     title = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
     note = db.Column(db.String(200), nullable=True)
@@ -201,20 +251,39 @@ class OtherExpense(db.Model, TimestampMixin):
     )
 
 
+# =========================================================
+# Advance expense
+# =========================================================
+class AdvanceExpense(db.Model, TimestampMixin):
+    """
+    ✅ เงินเบิกล่วงหน้า (โครงเหมือนค่าใช้จ่ายอื่น)
+    - หนึ่งโครงการมีหลายรายการ
+    """
+    __tablename__ = "advance_expenses"
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(
+        db.Integer, db.ForeignKey("projects.id"), nullable=False, index=True
+    )
+
+    title = db.Column(db.String(200), nullable=False)
+    advance_date = db.Column(db.Date, nullable=True)
+    amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    note = db.Column(db.String(200), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_advance_amount_nonneg"),
+        Index("ix_advance_expenses_project_id", "project_id"),
+    )
+
+
+# =========================================================
+# Dashboard aggregates
+# =========================================================
 def dashboard_aggregates(year: int | None = None, month: int | None = None) -> dict:
     """
     Aggregate totals for dashboard (filtered by Project.start_date month/year if provided).
-
-    ✅ คืน key ให้ตรงกับ template dashboard.html:
-      - materials, subs, expenses, grand
-      - other_by_category, projects_by_status
-      - top5 (list)
-
-    ✅ การกรอง:
-      - อิง Project.start_date (ตาม UI ระบุ)
-      - ถ้า project.start_date เป็น NULL จะไม่ถูกนับในช่วงที่กรอง
     """
-    # ---------- Base project filter ----------
     proj_q = db.session.query(Project.id)
 
     if year:
@@ -224,7 +293,6 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
 
     project_ids_subq = proj_q.subquery()
 
-    # ---------- Totals by category (only projects in filter) ----------
     materials_total = (
         db.session.query(func.coalesce(func.sum(MaterialItem.unit_price * MaterialItem.qty), 0))
         .filter(MaterialItem.project_id.in_(project_ids_subq))
@@ -251,7 +319,13 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
         or 0
     )
 
-    # ---------- Other by category ----------
+    advances_total = (
+        db.session.query(func.coalesce(func.sum(AdvanceExpense.amount), 0))
+        .filter(AdvanceExpense.project_id.in_(project_ids_subq))
+        .scalar()
+        or 0
+    )
+
     rows = (
         db.session.query(OtherExpense.category, func.coalesce(func.sum(OtherExpense.amount), 0))
         .filter(OtherExpense.project_id.in_(project_ids_subq))
@@ -261,7 +335,6 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
     )
     other_by_category = [{"category": c, "total": float(t)} for c, t in rows]
 
-    # ---------- Projects by status (in filter) ----------
     status_rows = (
         db.session.query(Project.status, func.count(Project.id))
         .filter(Project.id.in_(project_ids_subq))
@@ -270,8 +343,6 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
     )
     projects_by_status = {s: int(n) for s, n in status_rows}
 
-    # ---------- Top5 projects (sum materials/subs/other per project) ----------
-    # Materials per project
     mat_rows = (
         db.session.query(
             MaterialItem.project_id.label("pid"),
@@ -282,7 +353,6 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
         .subquery()
     )
 
-    # Subs per project
     sub_rows = (
         db.session.query(
             SubcontractorPayment.project_id.label("pid"),
@@ -296,7 +366,6 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
         .subquery()
     )
 
-    # Other per project
     oth_rows = (
         db.session.query(
             OtherExpense.project_id.label("pid"),
@@ -307,6 +376,16 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
         .subquery()
     )
 
+    adv_rows = (
+        db.session.query(
+            AdvanceExpense.project_id.label("pid"),
+            func.coalesce(func.sum(AdvanceExpense.amount), 0).label("advances"),
+        )
+        .filter(AdvanceExpense.project_id.in_(project_ids_subq))
+        .group_by(AdvanceExpense.project_id)
+        .subquery()
+    )
+
     top5_q = (
         db.session.query(
             Project.code.label("code"),
@@ -314,21 +393,25 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
             func.coalesce(mat_rows.c.materials, 0).label("materials"),
             func.coalesce(sub_rows.c.subs, 0).label("subs"),
             func.coalesce(oth_rows.c.expenses, 0).label("expenses"),
+            func.coalesce(adv_rows.c.advances, 0).label("advances"),
             (
                 func.coalesce(mat_rows.c.materials, 0)
                 + func.coalesce(sub_rows.c.subs, 0)
                 + func.coalesce(oth_rows.c.expenses, 0)
+                + func.coalesce(adv_rows.c.advances, 0)
             ).label("total"),
         )
         .filter(Project.id.in_(project_ids_subq))
         .outerjoin(mat_rows, mat_rows.c.pid == Project.id)
         .outerjoin(sub_rows, sub_rows.c.pid == Project.id)
         .outerjoin(oth_rows, oth_rows.c.pid == Project.id)
+        .outerjoin(adv_rows, adv_rows.c.pid == Project.id)
         .order_by(
             (
                 func.coalesce(mat_rows.c.materials, 0)
                 + func.coalesce(sub_rows.c.subs, 0)
                 + func.coalesce(oth_rows.c.expenses, 0)
+                + func.coalesce(adv_rows.c.advances, 0)
             ).desc()
         )
         .limit(5)
@@ -343,23 +426,26 @@ def dashboard_aggregates(year: int | None = None, month: int | None = None) -> d
                 "materials": float(r.materials or 0),
                 "subs": float(r.subs or 0),
                 "expenses": float(r.expenses or 0),
+                "advances": float(r.advances or 0),
                 "total": float(r.total or 0),
             }
         )
 
     return {
-        # ✅ keys ตรงกับ dashboard.html
         "materials": float(materials_total),
         "subs": float(subs_payable_total),
         "expenses": float(other_total),
-        "grand": float(materials_total + subs_payable_total + other_total),
-
+        "advances": float(advances_total),
+        "grand": float(materials_total + subs_payable_total + other_total + advances_total),
         "other_by_category": other_by_category,
         "projects_by_status": projects_by_status,
         "top5": top5,
     }
 
 
+# =========================================================
+# Company profile
+# =========================================================
 class CompanyProfile(db.Model, TimestampMixin):
     __tablename__ = "company_profiles"
 
@@ -372,12 +458,8 @@ class CompanyProfile(db.Model, TimestampMixin):
     email = db.Column(db.String(120), nullable=True)
     website = db.Column(db.String(120), nullable=True)
 
-    # เก็บ path โลโก้ (ไฟล์อยู่ใน static/uploads/...)
     logo_path = db.Column(db.String(255), nullable=True)
 
-    # -------------------------
-    # ข้อมูลการชำระเงิน (ใช้ตอนพิมพ์ใบเสนอราคา)
-    # -------------------------
     payment_bank = db.Column(db.String(200), nullable=True)
     payment_account_no = db.Column(db.String(80), nullable=True)
     payment_account_name = db.Column(db.String(200), nullable=True)
@@ -393,32 +475,25 @@ class CompanyProfile(db.Model, TimestampMixin):
         return row
 
 
+# =========================================================
+# Sales docs & items
+# =========================================================
 class SalesDoc(db.Model, TimestampMixin):
     __tablename__ = "sales_docs"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # -------------------------
-    # Customer master reference
-    # -------------------------
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True, index=True)
     customer = db.relationship("Customer", lazy="joined")
 
-
-    # QT/BL/IV/RC
     doc_type = db.Column(db.String(10), nullable=False, default="QT")
-
-    # เลขเอกสาร เช่น QT-2026-0001
     doc_no = db.Column(db.String(40), nullable=False, unique=True, index=True)
-
-    # สถานะเริ่มต้น
     status = db.Column(db.String(20), nullable=False, default="DRAFT")  # DRAFT/APPROVED/VOID
 
-    # ✅ db.Date ควรใช้ date.today ไม่ใช่ datetime.utcnow
     issue_date = db.Column(db.Date, nullable=False, default=date.today)
     due_date = db.Column(db.Date, nullable=True)
 
-    # ----- ข้อมูลบริษัท (snapshot) -----
+    # Company snapshot
     company_name = db.Column(db.String(200), nullable=True)
     company_tax_id = db.Column(db.String(40), nullable=True)
     company_address = db.Column(db.Text, nullable=True)
@@ -427,51 +502,40 @@ class SalesDoc(db.Model, TimestampMixin):
     company_website = db.Column(db.String(120), nullable=True)
     company_logo_path = db.Column(db.String(255), nullable=True)
 
-    # ----- ข้อมูลลูกค้า -----
+    # Customer snapshot
     customer_name = db.Column(db.String(200), nullable=False)
     customer_tax_id = db.Column(db.String(40), nullable=True)
     customer_address = db.Column(db.Text, nullable=True)
     customer_phone = db.Column(db.String(80), nullable=True)
-    customer_email = db.Column(db.String(120), nullable=True)
+    customer_email = db.Column(db.String(80), nullable=True)
 
-    # หัวเรื่อง/รายละเอียดงาน
     subject = db.Column(db.String(255), nullable=True)
     description = db.Column(db.Text, nullable=True)
 
-    # ส่วนลดระดับเอกสาร
     discount_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
-    # VAT/WHT
-    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=7)  # %
-    wht_rate = db.Column(db.Numeric(5, 2), nullable=False, default=0)  # %
+    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=7)
+    wht_rate = db.Column(db.Numeric(5, 2), nullable=False, default=0)
 
     note = db.Column(db.Text, nullable=True)
 
-    # เงื่อนไขเงินประกัน + ระยะเวลารับประกัน (เดือน) + เงื่อนไขชำระเงิน
     deposit_note = db.Column(db.Text, nullable=True)
     warranty_months = db.Column(db.Integer, nullable=True)
     warranty_end_date = db.Column(db.Date, nullable=True)
     payment_terms = db.Column(db.Text, nullable=True)
 
-    # อนุมัติ
     approved_by = db.Column(db.String(120), nullable=True)
     approved_at = db.Column(db.DateTime, nullable=True)
 
-    # สำหรับเอกสารลูก (IV/RC/BL อ้างอิง QT)
     parent_id = db.Column(db.Integer, db.ForeignKey("sales_docs.id"), nullable=True, index=True)
 
-    # ✅ แนบไฟล์ BOQ
     boq_excel_path = db.Column(db.String(255), nullable=True)
     boq_pdf_path = db.Column(db.String(255), nullable=True)
 
     items = db.relationship("SalesItem", backref="doc", cascade="all, delete-orphan", lazy=True)
 
-    # -----------------------------
-    # ✅ Helpers + Totals (คำนวณยอด)
-    # -----------------------------
     @staticmethod
     def _d(v) -> Decimal:
-        """Convert value to Decimal safely."""
         if v is None:
             return Decimal("0")
         try:
@@ -486,7 +550,6 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @staticmethod
     def _q2(v: Decimal) -> Decimal:
-        """Quantize to 2 decimals."""
         try:
             return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         except Exception:
@@ -520,11 +583,6 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @property
     def wht_amount(self) -> Decimal:
-        """
-        ✅ WHT ต้องถูกคิดก่อน VAT (ตามที่ต้องการ)
-        - base = net_before_tax (หลังส่วนลดท้ายบิล)
-        - wht_amount = base * wht_rate
-        """
         rate = self._d(self.wht_rate)
         v = (self.net_before_tax * rate) / Decimal("100")
         if v < 0:
@@ -533,9 +591,6 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @property
     def net_after_wht(self) -> Decimal:
-        """
-        ยอดหลังหัก ณ ที่จ่าย (ฐานสำหรับคิด VAT)
-        """
         v = self.net_before_tax - self.wht_amount
         if v < 0:
             v = Decimal("0")
@@ -543,9 +598,6 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @property
     def vat_amount(self) -> Decimal:
-        """
-        ✅ VAT คิดจากยอดหลังหัก ณ ที่จ่าย (net_after_wht)
-        """
         rate = self._d(self.vat_rate)
         v = (self.net_after_wht * rate) / Decimal("100")
         if v < 0:
@@ -554,9 +606,6 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @property
     def gross_total(self) -> Decimal:
-        """
-        จำนวนเงินรวมทั้งสิ้น (หลังหัก ณ ที่จ่าย แล้วบวก VAT)
-        """
         v = self.net_after_wht + self.vat_amount
         if v < 0:
             v = Decimal("0")
@@ -564,17 +613,11 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @property
     def grand_total(self) -> Decimal:
-        """
-        ยอดชำระ = gross_total (เพราะหัก ณ ที่จ่ายไปแล้วก่อนคิด VAT)
-        """
         v = self.gross_total
         if v < 0:
             v = Decimal("0")
         return self._q2(v)
 
-    # -----------------------------
-    # ✅ Doc No generator
-    # -----------------------------
     @staticmethod
     def next_doc_no(doc_type: str = "QT") -> str:
         year = datetime.utcnow().year
@@ -613,3 +656,166 @@ class SalesItem(db.Model, TimestampMixin):
             return (self.qty * self.unit_price) - (self.discount_amount or 0)
         except Exception:
             return 0
+
+
+# =========================================================
+# ✅ Withholding master data (NEW)
+# =========================================================
+class WithholdingPerson(db.Model, TimestampMixin):
+    """
+    บุคคลธรรมดา สำหรับเอกสารหักภาษี ณ ที่จ่าย
+    - person_type: EMPLOYEE / SUBCONTRACTOR
+    """
+    __tablename__ = "withholding_people"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    full_name = db.Column(db.String(200), nullable=False, index=True)
+    person_type = db.Column(db.String(30), nullable=False, default="EMPLOYEE", index=True)
+
+    # เลขบัตรประชาชน (บางกรณีอาจใช้เป็น tax_id)
+    tax_id = db.Column(db.String(40), nullable=True, index=True)
+
+    address = db.Column(db.Text, nullable=True)
+    phone = db.Column(db.String(80), nullable=True)
+    note = db.Column(db.Text, nullable=True)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        Index("ix_wht_people_full_name", "full_name"),
+        Index("ix_wht_people_tax_id", "tax_id"),
+        Index("ix_wht_people_person_type", "person_type"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<WithholdingPerson {self.id} {self.full_name!r}>"
+
+
+class WithholdingEntity(db.Model, TimestampMixin):
+    """
+    นิติบุคคล สำหรับเอกสารหักภาษี ณ ที่จ่าย
+    - สามารถผูกกับ Customer ได้ (customer_id)
+    """
+    __tablename__ = "withholding_entities"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    company_name = db.Column(db.String(200), nullable=False, index=True)
+    tax_id = db.Column(db.String(40), nullable=True, index=True)
+
+    address = db.Column(db.Text, nullable=True)
+    phone = db.Column(db.String(80), nullable=True)
+    note = db.Column(db.Text, nullable=True)
+
+    # link to customer (optional)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True, index=True)
+    customer = db.relationship("Customer", lazy="joined")
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        Index("ix_wht_entities_company_name", "company_name"),
+        Index("ix_wht_entities_tax_id", "tax_id"),
+        Index("ix_wht_entities_customer_id", "customer_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<WithholdingEntity {self.id} {self.company_name!r}>"
+
+
+# =========================
+# WITHHOLDING (PND3/PND53)
+# =========================
+class WithholdingCertificate(db.Model, TimestampMixin):
+    """
+    เอกสารหนังสือรับรองหัก ณ ที่จ่าย (เริ่มที่ ภงด 3/53)
+    1 ใบ = 1 รายการ (ตามที่คุณเลือก)
+    """
+    __tablename__ = "withholding_certificates"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # PND3 / PND53
+    form_type = db.Column(db.String(10), nullable=False, default="PND53", index=True)
+
+    # เลขที่เอกสารภายในระบบ (เช่น WHT53-2026-0001)
+    doc_no = db.Column(db.String(40), nullable=False, unique=True, index=True)
+
+    # ผู้ถูกหัก: PERSON / ENTITY
+    payee_kind = db.Column(db.String(10), nullable=False, default="PERSON", index=True)
+
+    payee_person_id = db.Column(db.Integer, db.ForeignKey("withholding_people.id"), nullable=True, index=True)
+    payee_entity_id = db.Column(db.Integer, db.ForeignKey("withholding_entities.id"), nullable=True, index=True)
+
+    payee_person = db.relationship("WithholdingPerson", lazy="joined")
+    payee_entity = db.relationship("WithholdingEntity", lazy="joined")
+
+    # Snapshot ผู้จ่ายเงิน (บริษัทเรา) ตอนออกเอกสาร
+    payer_name = db.Column(db.String(200), nullable=False, default="บริษัทของฉัน")
+    payer_tax_id = db.Column(db.String(40), nullable=True)
+    payer_address = db.Column(db.Text, nullable=True)
+    payer_branch_no = db.Column(db.String(20), nullable=True, default="00000")
+
+    # รายการจ่ายเงิน (1 รายการต่อใบ)
+    payment_date = db.Column(db.Date, nullable=False, default=date.today, index=True)
+
+    # หมวด/ประเภทเงินได้ (ใส่เป็นข้อความก่อน เดี๋ยวค่อยทำเป็นตัวเลือก)
+    income_type = db.Column(db.String(120), nullable=True)   # เช่น "ค่าบริการ" / "ค่าเช่า" / ฯลฯ
+    description = db.Column(db.String(255), nullable=True)   # รายละเอียดเพิ่มเติม
+
+    base_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)  # ฐานภาษี
+    wht_rate = db.Column(db.Numeric(6, 2), nullable=False, default=3)      # %
+    wht_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)   # ยอดหัก
+
+    note = db.Column(db.Text, nullable=True)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "(payee_kind='PERSON' AND payee_person_id IS NOT NULL AND payee_entity_id IS NULL) "
+            "OR (payee_kind='ENTITY' AND payee_entity_id IS NOT NULL AND payee_person_id IS NULL)",
+            name="ck_wht_cert_payee_one_of",
+        ),
+        CheckConstraint("base_amount >= 0", name="ck_wht_cert_base_nonneg"),
+        CheckConstraint("wht_rate >= 0", name="ck_wht_cert_rate_nonneg"),
+        CheckConstraint("wht_amount >= 0", name="ck_wht_cert_amount_nonneg"),
+        Index("ix_wht_cert_form_type", "form_type"),
+        Index("ix_wht_cert_payment_date", "payment_date"),
+    )
+
+    @property
+    def payee_display_name(self) -> str:
+        if self.payee_kind == "PERSON" and self.payee_person:
+            return self.payee_person.full_name
+        if self.payee_kind == "ENTITY" and self.payee_entity:
+            return self.payee_entity.company_name
+        return "-"
+
+    @property
+    def payee_tax_id(self) -> str:
+        if self.payee_kind == "PERSON" and self.payee_person:
+            return self.payee_person.tax_id or ""
+        if self.payee_kind == "ENTITY" and self.payee_entity:
+            return self.payee_entity.tax_id or ""
+        return ""
+
+    @staticmethod
+    def next_doc_no(form_type: str = "PND53") -> str:
+        year = datetime.utcnow().year
+        prefix = "WHT53" if form_type == "PND53" else "WHT3"
+        head = f"{prefix}-{year}-"
+        last = (
+            WithholdingCertificate.query
+            .filter(WithholdingCertificate.doc_no.like(f"{head}%"))
+            .order_by(WithholdingCertificate.id.desc())
+            .first()
+        )
+        last_no = 0
+        if last and last.doc_no:
+            try:
+                last_no = int(last.doc_no.split("-")[-1])
+            except Exception:
+                last_no = 0
+        return f"{head}{last_no + 1:04d}"

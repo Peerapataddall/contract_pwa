@@ -23,8 +23,13 @@
     input.type = type;
     input.className = cls;
     input.placeholder = placeholder;
-    input.value = value || '';
+    input.value = (value === null || value === undefined) ? '' : value;
+
+    // ✅ date input ใช้ change จะชัวร์กว่า (บาง browser ไม่ยิง input ทุกครั้ง)
+    const evt = (type === 'date') ? 'change' : 'input';
+    input.addEventListener(evt, () => ProjectForm.recalc());
     input.addEventListener('input', () => ProjectForm.recalc());
+
     return input;
   }
 
@@ -37,7 +42,7 @@
   }
 
   const Materials = {
-    tbody(){ return byId('materials_table').querySelector('tbody'); },
+    tbody(){ return byId('materials_table')?.querySelector('tbody'); },
     addRow(data={}){
       const tr = document.createElement('tr');
 
@@ -49,6 +54,14 @@
 
       const tdName = document.createElement('td');
       tdName.appendChild(makeInput('ชื่อวัสดุ', data.item_name));
+
+      // ✅ NEW: ใบกำกับเลขที่
+      const tdInvNo = document.createElement('td');
+      tdInvNo.appendChild(makeInput('เช่น INV-000123', data.tax_invoice_no, 'input input-table mono'));
+
+      // ✅ NEW: วันที่ใบกำกับ (ปฏิทิน)
+      const tdInvDate = document.createElement('td');
+      tdInvDate.appendChild(makeInput('', data.tax_invoice_date, 'input input-table mono', 'date'));
 
       const tdUP = document.createElement('td'); tdUP.className='right';
       tdUP.appendChild(makeInput('0.00', data.unit_price, 'input input-table right mono', 'number'));
@@ -64,34 +77,45 @@
       del.addEventListener('click', ()=>rowRemove(del));
       tdDel.appendChild(del);
 
-      tr.append(tdBrand, tdCode, tdName, tdUP, tdQty, tdTotal, tdDel);
-      this.tbody().appendChild(tr);
+      // ✅ ต้องเรียงให้ตรงกับ THEAD
+      tr.append(tdBrand, tdCode, tdName, tdInvNo, tdInvDate, tdUP, tdQty, tdTotal, tdDel);
+      this.tbody()?.appendChild(tr);
       ProjectForm.recalc();
     },
     read(){
       const rows = [];
-      this.tbody().querySelectorAll('tr').forEach(tr=>{
+      this.tbody()?.querySelectorAll('tr').forEach(tr=>{
         const tds = tr.querySelectorAll('td');
+
+        // indexes ตาม THEAD:
+        // 0 brand, 1 code, 2 name, 3 inv_no, 4 inv_date, 5 unit_price, 6 qty, 7 total, 8 del
         const brand = val(tds[0].querySelector('input'));
         const item_code = val(tds[1].querySelector('input'));
         const item_name = val(tds[2].querySelector('input'));
-        const unit_price = num(val(tds[3].querySelector('input')));
-        const qty = num(val(tds[4].querySelector('input')));
+        const tax_invoice_no = val(tds[3].querySelector('input'));
+        const tax_invoice_date = val(tds[4].querySelector('input')); // YYYY-MM-DD จาก date picker
+        const unit_price = num(val(tds[5].querySelector('input')));
+        const qty = num(val(tds[6].querySelector('input')));
+
         const total = unit_price * qty;
-        tds[5].textContent = fmt2(total);
-        rows.push({brand, item_code, item_name, unit_price, qty});
+        tds[7].textContent = fmt2(total);
+
+        rows.push({brand, item_code, item_name, tax_invoice_no, tax_invoice_date, unit_price, qty});
       });
       return rows;
     }
   };
 
   const Subs = {
-    tbody(){ return byId('subs_table').querySelector('tbody'); },
+    tbody(){ return byId('subs_table')?.querySelector('tbody'); },
     addRow(data={}){
       const tr = document.createElement('tr');
 
       const tdName = document.createElement('td');
       tdName.appendChild(makeInput('ชื่อผู้รับเหมาช่วง', data.vendor_name));
+
+      const tdDate = document.createElement('td');
+      tdDate.appendChild(makeInput('', data.pay_date, 'input input-table mono', 'date'));
 
       const tdAmt = document.createElement('td'); tdAmt.className='right';
       tdAmt.appendChild(makeInput('0.00', data.contract_amount, 'input input-table right mono', 'number'));
@@ -110,7 +134,6 @@
       del.addEventListener('click', ()=>rowRemove(del));
       tdDel.appendChild(del);
 
-      // auto calc withholding amount when rate changes & amount empty
       const rateInput = tdRate.querySelector('input');
       const amtInput = tdAmt.querySelector('input');
       const whtInput = tdWht.querySelector('input');
@@ -126,28 +149,29 @@
       rateInput.addEventListener('blur', autoWht);
       amtInput.addEventListener('blur', autoWht);
 
-      tr.append(tdName, tdAmt, tdRate, tdWht, tdPay, tdDel);
-      this.tbody().appendChild(tr);
+      tr.append(tdName, tdDate, tdAmt, tdRate, tdWht, tdPay, tdDel);
+      this.tbody()?.appendChild(tr);
       ProjectForm.recalc();
     },
     read(){
       const rows = [];
-      this.tbody().querySelectorAll('tr').forEach(tr=>{
+      this.tbody()?.querySelectorAll('tr').forEach(tr=>{
         const tds = tr.querySelectorAll('td');
         const vendor_name = val(tds[0].querySelector('input'));
-        const contract_amount = num(val(tds[1].querySelector('input')));
-        const withholding_rate = num(val(tds[2].querySelector('input')));
-        const withholding_amount = num(val(tds[3].querySelector('input')));
+        const pay_date = val(tds[1].querySelector('input'));
+        const contract_amount = num(val(tds[2].querySelector('input')));
+        const withholding_rate = num(val(tds[3].querySelector('input')));
+        const withholding_amount = num(val(tds[4].querySelector('input')));
         const payable = Math.max(0, contract_amount - withholding_amount);
-        tds[4].textContent = fmt2(payable);
-        rows.push({vendor_name, contract_amount, withholding_rate, withholding_amount});
+        tds[5].textContent = fmt2(payable);
+        rows.push({vendor_name, pay_date, contract_amount, withholding_rate, withholding_amount});
       });
       return rows;
     }
   };
 
   const Expenses = {
-    tbody(){ return byId('expenses_table').querySelector('tbody'); },
+    tbody(){ return byId('expenses_table')?.querySelector('tbody'); },
     addRow(data={}){
       const tr = document.createElement('tr');
 
@@ -157,6 +181,9 @@
       const tdTitle = document.createElement('td');
       tdTitle.appendChild(makeInput('รายการ', data.title));
 
+      const tdDate = document.createElement('td');
+      tdDate.appendChild(makeInput('', data.expense_date, 'input input-table mono', 'date'));
+
       const tdAmt = document.createElement('td'); tdAmt.className='right';
       tdAmt.appendChild(makeInput('0.00', data.amount, 'input input-table right mono', 'number'));
 
@@ -165,18 +192,55 @@
       del.addEventListener('click', ()=>rowRemove(del));
       tdDel.appendChild(del);
 
-      tr.append(tdCat, tdTitle, tdAmt, tdDel);
-      this.tbody().appendChild(tr);
+      tr.append(tdCat, tdTitle, tdDate, tdAmt, tdDel);
+      this.tbody()?.appendChild(tr);
       ProjectForm.recalc();
     },
     read(){
       const rows = [];
-      this.tbody().querySelectorAll('tr').forEach(tr=>{
+      this.tbody()?.querySelectorAll('tr').forEach(tr=>{
         const tds = tr.querySelectorAll('td');
         const category = val(tds[0].querySelector('input')) || 'อื่นๆ';
         const title = val(tds[1].querySelector('input'));
+        const expense_date = val(tds[2].querySelector('input'));
+        const amount = num(val(tds[3].querySelector('input')));
+        rows.push({category, title, expense_date, amount});
+      });
+      return rows;
+    }
+  };
+
+  const Advances = {
+    tbody(){ return byId('advances_table')?.querySelector('tbody'); },
+    addRow(data={}){
+      const tr = document.createElement('tr');
+
+      const tdTitle = document.createElement('td');
+      tdTitle.appendChild(makeInput('รายการ', data.title));
+
+      const tdDate = document.createElement('td');
+      tdDate.appendChild(makeInput('', data.advance_date, 'input input-table mono', 'date'));
+
+      const tdAmt = document.createElement('td'); tdAmt.className='right';
+      tdAmt.appendChild(makeInput('0.00', data.amount, 'input input-table right mono', 'number'));
+
+      const tdDel = document.createElement('td'); tdDel.className='right';
+      const del = makeButton('✖','btn btn-small btn-ghost');
+      del.addEventListener('click', ()=>rowRemove(del));
+      tdDel.appendChild(del);
+
+      tr.append(tdTitle, tdDate, tdAmt, tdDel);
+      this.tbody()?.appendChild(tr);
+      ProjectForm.recalc();
+    },
+    read(){
+      const rows = [];
+      this.tbody()?.querySelectorAll('tr').forEach(tr=>{
+        const tds = tr.querySelectorAll('td');
+        const title = val(tds[0].querySelector('input'));
+        const advance_date = val(tds[1].querySelector('input'));
         const amount = num(val(tds[2].querySelector('input')));
-        rows.push({category, title, amount});
+        rows.push({title, advance_date, amount});
       });
       return rows;
     }
@@ -187,15 +251,18 @@
       const mats = Materials.read();
       const subs = Subs.read();
       const exps = Expenses.read();
+      const advs = Advances.read();
 
       const mt = mats.reduce((a,r)=>a + (num(r.unit_price) * num(r.qty)), 0);
       const st = subs.reduce((a,r)=>a + Math.max(0, num(r.contract_amount) - num(r.withholding_amount)), 0);
       const et = exps.reduce((a,r)=>a + num(r.amount), 0);
+      const at = advs.reduce((a,r)=>a + num(r.amount), 0);
 
       byId('materials_total').textContent = fmt2(mt);
       byId('subs_total').textContent = fmt2(st);
       byId('expenses_total').textContent = fmt2(et);
-      byId('grand_total').textContent = fmt2(mt + st + et);
+      byId('advances_total').textContent = fmt2(at);
+      byId('grand_total').textContent = fmt2(mt + st + et + at);
     },
 
     collect(){
@@ -209,9 +276,11 @@
         end_date: val(byId('end_date')),
         work_days: num(val(byId('work_days'))),
         status: val(byId('status')),
+
         materials: Materials.read(),
         subcontractors: Subs.read(),
         expenses: Expenses.read(),
+        advances: Advances.read(),
       };
     },
 
@@ -256,17 +325,19 @@
   window.Materials = Materials;
   window.Subs = Subs;
   window.Expenses = Expenses;
+  window.Advances = Advances;
   window.ProjectForm = ProjectForm;
 
-  // init rows
   const p = window.__PROJECT__ || {};
   (p.materials || []).forEach(r=>Materials.addRow(r));
   (p.subcontractors || []).forEach(r=>Subs.addRow(r));
   (p.expenses || []).forEach(r=>Expenses.addRow(r));
+  (p.advances || []).forEach(r=>Advances.addRow(r));
 
   if ((p.materials || []).length === 0) Materials.addRow({});
   if ((p.subcontractors || []).length === 0) Subs.addRow({});
   if ((p.expenses || []).length === 0) Expenses.addRow({category:'อื่นๆ'});
+  if ((p.advances || []).length === 0) Advances.addRow({});
 
   ProjectForm.recalc();
 })();

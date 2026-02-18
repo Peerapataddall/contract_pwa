@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 db = SQLAlchemy()
 migrate = Migrate()
 
+
 def create_app() -> Flask:
     load_dotenv()
 
@@ -27,12 +28,16 @@ def create_app() -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
 
+    # -------------------------------------------------
     # Register blueprints
+    # -------------------------------------------------
     from .blueprints.pages import bp_pages
     from .blueprints.api import bp_api
     from .blueprints.settings import bp_settings
     from .blueprints.docs import bp_docs
     from .blueprints.customers import bp_customers
+    from .blueprints.withholding import bp_withholding
+    from .blueprints.withholding_docs import bp_withholding_docs
 
     app.register_blueprint(bp_docs)
     app.register_blueprint(bp_customers)
@@ -40,8 +45,13 @@ def create_app() -> Flask:
     app.register_blueprint(bp_api, url_prefix="/api")
     app.register_blueprint(bp_settings)
 
+    # ✅ ห้ามซ้ำ
+    app.register_blueprint(bp_withholding)
+    app.register_blueprint(bp_withholding_docs)
 
-    # ✅ Register Thai amount-to-text helper for Jinja
+    # -------------------------------------------------
+    # Jinja helpers
+    # -------------------------------------------------
     from .utils import thai_baht_text
     app.jinja_env.globals["thai_baht_text"] = thai_baht_text
     app.jinja_env.filters["thai_baht_text"] = thai_baht_text

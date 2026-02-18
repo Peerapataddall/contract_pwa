@@ -6,7 +6,14 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from .. import db
-from ..models import Customer, MaterialItem, OtherExpense, Project, SubcontractorPayment
+from ..models import (
+    AdvanceExpense,
+    Customer,
+    MaterialItem,
+    OtherExpense,
+    Project,
+    SubcontractorPayment,
+)
 
 bp_api = Blueprint("api", __name__)
 
@@ -33,7 +40,6 @@ def _to_float(x):
         return float(s)
     except Exception:
         return 0.0
-
 
 
 @bp_api.get("/projects/<int:pid>")
@@ -104,6 +110,7 @@ def _serialize_project(p: Project) -> dict:
             "materials": p.total_material_cost,
             "subcontractors": p.total_subcontractor_cost,
             "other": p.total_other_expense,
+            "advances": p.total_advance_expense,
             "grand": p.total_cost,
         },
         "materials": [
@@ -113,32 +120,51 @@ def _serialize_project(p: Project) -> dict:
                 "item_code": m.item_code or "",
                 "item_name": m.item_name or "",
                 "unit": m.unit or "",
+                # ✅ NEW: ใบกำกับภาษี “ต่อแถว”
+                "tax_invoice_no": (getattr(m, "tax_invoice_no", None) or ""),
+                "tax_invoice_date": (
+                    getattr(m, "tax_invoice_date").isoformat()
+                    if getattr(m, "tax_invoice_date", None)
+                    else ""
+                ),
                 "unit_price": float(m.unit_price or 0),
                 "qty": float(m.qty or 0),
                 "note": m.note or "",
             }
-            for m in p.materials
+            for m in (p.materials or [])
         ],
         "subcontractors": [
             {
                 "id": s.id,
                 "vendor_name": s.vendor_name,
+                "pay_date": s.pay_date.isoformat() if getattr(s, "pay_date", None) else "",
                 "contract_amount": float(s.contract_amount or 0),
                 "withholding_rate": float(s.withholding_rate or 0),
                 "withholding_amount": float(s.withholding_amount or 0),
                 "note": s.note or "",
             }
-            for s in p.subcontractors
+            for s in (p.subcontractors or [])
         ],
         "expenses": [
             {
                 "id": e.id,
                 "category": e.category or "",
                 "title": e.title,
+                "expense_date": e.expense_date.isoformat() if getattr(e, "expense_date", None) else "",
                 "amount": float(e.amount or 0),
                 "note": e.note or "",
             }
-            for e in p.expenses
+            for e in (p.expenses or [])
+        ],
+        "advances": [
+            {
+                "id": a.id,
+                "title": a.title,
+                "advance_date": a.advance_date.isoformat() if getattr(a, "advance_date", None) else "",
+                "amount": float(a.amount or 0),
+                "note": a.note or "",
+            }
+            for a in (p.advances or [])
         ],
     }
 
@@ -154,10 +180,14 @@ def _apply_project_payload(p: Project, payload: dict) -> None:
     p.work_days = int(payload.get("work_days") or 0)
     p.status = (payload.get("status") or "IN_PROGRESS").strip().upper()
 
+    # ✅ NOTE: ย้ายใบกำกับภาษีวัสดุไปอยู่ใน MaterialItem แล้ว
+    # (ไม่ใช้ p.materials_tax_invoice_no/date ใน Project)
+
     # clear and recreate children (ง่ายต่อ UI หน้าเดียว)
     p.materials.clear()
     p.subcontractors.clear()
     p.expenses.clear()
+    p.advances.clear()
 
     for row in payload.get("materials") or []:
         m = MaterialItem(
@@ -165,13 +195,22 @@ def _apply_project_payload(p: Project, payload: dict) -> None:
             item_code=(row.get("item_code") or "").strip() or None,
             item_name=(row.get("item_name") or "").strip() or None,
             unit=(row.get("unit") or "").strip() or None,
+
+            # ✅ NEW: ใบกำกับภาษี “ต่อแถว”
+            tax_invoice_no=(row.get("tax_invoice_no") or "").strip() or None,
+            tax_invoice_date=_parse_date(row.get("tax_invoice_date")),
+
             unit_price=_to_float(row.get("unit_price")),
             qty=_to_float(row.get("qty")),
             note=(row.get("note") or "").strip() or None,
         )
-        # ข้ามบรรทัดว่างทั้งหมด
-        if not (m.brand or m.item_code or m.item_name) and (m.unit_price == 0 and m.qty == 0):
+
+        # ✅ ข้ามแถวว่าง: ถ้าไม่มีข้อมูลสำคัญเลย และยอดเป็น 0
+        has_any_text = bool(m.brand or m.item_code or m.item_name or m.tax_invoice_no)
+        has_any_amount = (float(m.unit_price or 0) != 0) or (float(m.qty or 0) != 0)
+        if (not has_any_text) and (not has_any_amount) and (not m.tax_invoice_date):
             continue
+
         p.materials.append(m)
 
     for row in payload.get("subcontractors") or []:
@@ -189,6 +228,7 @@ def _apply_project_payload(p: Project, payload: dict) -> None:
 
         s = SubcontractorPayment(
             vendor_name=vendor_name or "(ไม่ระบุชื่อ)",
+            pay_date=_parse_date(row.get("pay_date")),
             contract_amount=contract_amount,
             withholding_rate=wht_rate,
             withholding_amount=wht_amount,
@@ -205,12 +245,26 @@ def _apply_project_payload(p: Project, payload: dict) -> None:
         e = OtherExpense(
             category=(row.get("category") or "อื่นๆ").strip() or "อื่นๆ",
             title=title or "(ไม่ระบุ)",
+            expense_date=_parse_date(row.get("expense_date")),
             amount=amount,
             note=(row.get("note") or "").strip() or None,
         )
         p.expenses.append(e)
 
-    # validation เบื้องต้น
+    for row in payload.get("advances") or []:
+        title = (row.get("title") or "").strip()
+        amount = _to_float(row.get("amount"))
+        if not title and amount == 0:
+            continue
+
+        a = AdvanceExpense(
+            title=title or "(ไม่ระบุ)",
+            advance_date=_parse_date(row.get("advance_date")),
+            amount=amount,
+            note=(row.get("note") or "").strip() or None,
+        )
+        p.advances.append(a)
+
     if not p.code:
         raise ValueError("code is required")
     if not p.name:
