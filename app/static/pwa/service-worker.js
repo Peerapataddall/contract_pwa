@@ -7,8 +7,8 @@ const ASSETS = [
   '/static/js/pwa.js',
   '/static/js/project_form.js',
   '/static/pwa/manifest.json',
-  '/static/icons/icon-192.png',
-  '/static/icons/icon-512.png'
+  '/static/icons/superflow-appicon-512.png',
+  '/static/icons/superflow-appicon-512.png'
 ];
 
 self.addEventListener('install', (event) => {

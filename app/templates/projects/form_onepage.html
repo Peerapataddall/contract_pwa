@@ -4,31 +4,159 @@
 {% block content %}
 
 <style>
-  /* ===== Mobile-first tweaks (เฉพาะหน้านี้) ===== */
-  .pagehead{
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    padding-top: 10px;
-    margin-top: -10px;
+  .projectFormPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
   }
-  .pagehead .actions{
+
+  .formHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .formHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
+
+  .formHero__actions{
     display:flex;
     gap:10px;
     flex-wrap:wrap;
     justify-content:flex-end;
   }
+
+  .sectionCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .sectionCard--soft{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F5FAFF 100%);
+  }
+
+  .sectionHeader{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+
+  .sectionHeader__sub{
+    margin-top:4px;
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .fieldGrid{
+    display:grid;
+    gap:14px;
+  }
+
+  .fieldGrid-2{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .fieldGrid-3{
+    grid-template-columns:repeat(3, 1fr);
+  }
+
+  .stickyActionBar{
+    position:sticky;
+    bottom:16px;
+    z-index:15;
+    background:rgba(246,250,255,.88);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    border:1px solid var(--line);
+    border-radius:24px;
+    box-shadow:var(--shadow-md);
+    padding:18px;
+  }
+
+  .stickyActionBar__grid{
+    display:grid;
+    grid-template-columns: 1.1fr 1fr auto;
+    gap:16px;
+    align-items:center;
+  }
+
+  .summaryBox{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #EAF3FF 0%, #CCE2FF 100%);
+    border-radius:20px;
+    padding:16px;
+  }
+
+  .summaryBox__label{
+    font-size:12px;
+    font-weight:700;
+    color:var(--text-soft);
+  }
+
+  .summaryBox__value{
+    margin-top:8px;
+    font-size:24px;
+    font-weight:800;
+    color:#1E40AF;
+  }
+
+  .noteBox{
+    color:var(--text-soft);
+    line-height:1.55;
+    font-size:14px;
+  }
+
+  .actionButtons{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
   .btn{ min-height:44px; }
   .input{ min-height:44px; }
   .btn.btn-small{ min-height:40px; padding:8px 12px; }
+
+  .hint{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-top:6px;
+  }
+
+  .tablePanel{
+    border:1px solid var(--line);
+    border-radius:18px;
+    overflow:hidden;
+    background:#FFFFFF;
+  }
+
   .table-wrap{
     overflow-x:auto;
     -webkit-overflow-scrolling:touch;
-    border-radius: 14px;
   }
-  .table{ min-width: 1120px; } /* เพิ่มความกว้าง เพราะเพิ่ม 2 คอลัมน์ */
+
+  .table{
+    min-width:1120px;
+  }
+
   .section-head{
     display:flex;
     align-items:center;
@@ -36,246 +164,326 @@
     gap:12px;
     flex-wrap:wrap;
   }
-  .section-head .section-title{ font-size: 18px; }
+
+  .section-head .section-title{
+    font-size:18px;
+  }
+
+  .totals{
+    margin-top:12px;
+    padding-top:12px;
+    border-top:1px dashed var(--line-strong);
+  }
+
   .totals .totals__row{
     display:flex;
     align-items:center;
     justify-content:space-between;
     gap:12px;
   }
+
+  .totals .totals__row strong,
+  .totals .totals__row .mono{
+    color:var(--text);
+  }
+
+  .table thead th{
+    background:#F5FAFF;
+  }
+
+  @media (max-width: 1040px){
+    .stickyActionBar__grid{
+      grid-template-columns:1fr;
+      align-items:flex-start;
+    }
+
+    .actionButtons{
+      justify-content:flex-start;
+    }
+  }
+
   @media (max-width: 860px){
-    .grid.grid-2{ grid-template-columns: 1fr !important; }
-    .grid.grid-3{ grid-template-columns: 1fr !important; }
+    .fieldGrid-2{ grid-template-columns: 1fr !important; }
+    .fieldGrid-3{ grid-template-columns: 1fr !important; }
     .right{ text-align:left !important; }
-    .table{ min-width: 980px; }
-    .pagehead h1{ font-size: 22px; }
+    .table{ min-width:980px; }
+    .formHero h1{ font-size:22px; }
+    .stickyActionBar{
+      bottom:10px;
+    }
   }
 </style>
 
-<div class="pagehead">
-  <div>
-    <h1>{{ 'แก้ไขโครงการ' if project else 'เพิ่มโครงการ' }}</h1>
-    <div class="muted">กรอกข้อมูลทั้งหมดในหน้าเดียว แล้วกดบันทึก</div>
-  </div>
-  <div class="actions">
-    <a class="btn" href="{{ url_for('pages.project_list') }}">← กลับ</a>
-    {% if project %}
-      <a class="btn" href="{{ url_for('pages.project_view', pid=project.id) }}">👁️ ดู</a>
-    {% endif %}
-  </div>
-</div>
-
-<div class="card">
-  <div class="grid grid-2">
+<div class="projectFormPage">
+  <div class="formHero">
     <div>
-      <label class="label">รหัสโครงการ *</label>
-      <input class="input" id="code" placeholder="เช่น PJ-2026-001" value="{{ project.code if project else '' }}">
-      <div class="hint">ต้องไม่ซ้ำ (ใช้สำหรับค้นหา)</div>
+      <h1>{{ 'แก้ไขโครงการ' if project else 'เพิ่มโครงการ' }}</h1>
+      <div class="formHero__sub">กรอกข้อมูลทั้งหมดในหน้าเดียว แล้วกดบันทึก ระบบจะรวมต้นทุนให้อัตโนมัติ</div>
     </div>
-    <div>
-      <label class="label">สถานะ</label>
-      <select class="input" id="status">
-        <option value="IN_PROGRESS" {{ 'selected' if project and project.status=='IN_PROGRESS' else '' }}>กำลังทำงาน</option>
-        <option value="DEFECT" {{ 'selected' if project and project.status=='DEFECT' else '' }}>กำลังเก็บ Defect</option>
-        <option value="DONE" {{ 'selected' if project and project.status=='DONE' else '' }}>งานจบ</option>
-      </select>
+
+    <div class="formHero__actions">
+      <a class="btn" href="{{ url_for('pages.project_list') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>กลับ</span>
+      </a>
+      {% if project %}
+        <a class="btn" href="{{ url_for('pages.project_view', pid=project.id) }}">
+          <i class="bi bi-eye"></i>
+          <span>ดูโครงการ</span>
+        </a>
+      {% endif %}
     </div>
   </div>
 
-  <div class="mt-12">
-    <label class="label">ชื่อโครงการ *</label>
-    <input class="input" id="name" placeholder="เช่น งานบิ้วอินบ้านคุณ A" value="{{ project.name if project else '' }}">
-  </div>
+  <div class="sectionCard">
+    <div class="sectionHeader">
+      <div>
+        <div class="section-title">ข้อมูลโครงการ</div>
+        <div class="sectionHeader__sub">กำหนดรหัส ชื่อ สถานะ ลูกค้า สถานที่ และช่วงเวลาของงาน</div>
+      </div>
+    </div>
 
-  <div class="grid grid-2 mt-12">
-    <div>
-      <label class="label">ชื่อลูกค้า</label>
-      <input class="input" id="customer_name" value="{{ project.customer_name if project else '' }}" placeholder="(ไม่บังคับ)">
+    <div class="fieldGrid fieldGrid-2">
+      <div>
+        <label class="label">รหัสโครงการ *</label>
+        <input class="input" id="code" placeholder="เช่น PJ-2026-001" value="{{ project.code if project else '' }}">
+        <div class="hint">ต้องไม่ซ้ำ และใช้สำหรับค้นหาโครงการ</div>
+      </div>
+
+      <div>
+        <label class="label">สถานะ</label>
+        <select class="input" id="status">
+          <option value="IN_PROGRESS" {{ 'selected' if project and project.status == 'IN_PROGRESS' else '' }}>กำลังทำงาน</option>
+          <option value="DEFECT" {{ 'selected' if project and project.status == 'DEFECT' else '' }}>กำลังเก็บงาน / Defect</option>
+          <option value="DONE" {{ 'selected' if project and project.status == 'DONE' else '' }}>งานเสร็จแล้ว</option>
+        </select>
+      </div>
     </div>
-    <div>
-      <label class="label">สถานที่</label>
-      <input class="input" id="location" value="{{ project.location if project else '' }}" placeholder="(ไม่บังคับ)">
+
+    <div class="mt-12">
+      <label class="label">ชื่อโครงการ *</label>
+      <input class="input" id="name" placeholder="เช่น งานบิ้วอินบ้านคุณ A" value="{{ project.name if project else '' }}">
+    </div>
+
+    <div class="fieldGrid fieldGrid-2 mt-12">
+      <div>
+        <label class="label">ชื่อลูกค้า</label>
+        <input class="input" id="customer_name" value="{{ project.customer_name if project else '' }}" placeholder="ไม่บังคับ">
+      </div>
+
+      <div>
+        <label class="label">สถานที่</label>
+        <input class="input" id="location" value="{{ project.location if project else '' }}" placeholder="ไม่บังคับ">
+      </div>
+    </div>
+
+    <div class="fieldGrid fieldGrid-3 mt-12">
+      <div>
+        <label class="label">วันเริ่ม</label>
+        <input class="input" id="start_date" type="date" value="{{ project.start_date.isoformat() if project and project.start_date else '' }}">
+      </div>
+
+      <div>
+        <label class="label">วันสิ้นสุด</label>
+        <input class="input" id="end_date" type="date" value="{{ project.end_date.isoformat() if project and project.end_date else '' }}">
+        <div class="hint">วันสิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น</div>
+      </div>
+
+      <div>
+        <label class="label">จำนวนวันทำงาน</label>
+        <input class="input" id="work_days" type="number" min="0" step="1" value="{{ project.work_days if project else 0 }}">
+      </div>
+    </div>
+
+    <div class="mt-12">
+      <label class="label">รายละเอียดโครงการ</label>
+      <textarea class="input" id="description" rows="3" placeholder="สรุปว่าทำอะไรบ้าง...">{{ project.description if project and project.description else '' }}</textarea>
     </div>
   </div>
-
-  <div class="grid grid-3 mt-12">
-    <div>
-      <label class="label">วันเริ่ม</label>
-      <input class="input" id="start_date" type="date" value="{{ project.start_date if project and project.start_date else '' }}">
-    </div>
-    <div>
-      <label class="label">วันสิ้นสุด</label>
-      <input class="input" id="end_date" type="date" value="{{ project.end_date if project and project.end_date else '' }}">
-    </div>
-    <div>
-      <label class="label">เข้าทำงาน (วัน)</label>
-      <input class="input" id="work_days" type="number" min="0" step="1" value="{{ project.work_days if project else 0 }}">
-    </div>
-  </div>
-
-  <div class="mt-12">
-    <label class="label">รายละเอียดโครงการ</label>
-    <textarea class="input" id="description" rows="3" placeholder="สรุปว่าทำอะไรบ้าง...">{{ project.description if project and project.description else '' }}</textarea>
-  </div>
-</div>
-
-<div class="mt-12">
 
   <!-- วัสดุ -->
-  <div class="card">
+  <div class="sectionCard sectionCard--soft">
     <div class="section-head">
       <div>
         <div class="section-title">วัสดุ / ของที่ใช้ในโครงการ</div>
-        <div class="muted">ใส่ยี่ห้อ / รหัส / ราคา / จำนวน / ใบกำกับภาษี (เพิ่มแถวได้)</div>
+        <div class="muted">กรอกยี่ห้อ รหัส ชื่อวัสดุ ราคา จำนวน และข้อมูลใบกำกับภาษี</div>
       </div>
-      <button class="btn btn-small" type="button" onclick="Materials.addRow()">➕ เพิ่มแถว</button>
+      <button class="btn btn-small" type="button" onclick="Materials.addRow()">
+        <i class="bi bi-plus-lg"></i>
+        <span>เพิ่มแถว</span>
+      </button>
     </div>
 
-    <div class="table-wrap">
-      <table class="table" id="materials_table">
-        <thead>
-          <tr>
-            <th>ยี่ห้อ</th>
-            <th>รหัส</th>
-            <th>ชื่อ</th>
-            <th>ใบกำกับเลขที่</th>
-            <th>วันที่ใบกำกับ</th>
-            <th class="right">ราคา/หน่วย</th>
-            <th class="right">จำนวน</th>
-            <th class="right">รวม</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div class="tablePanel">
+      <div class="table-wrap">
+        <table class="table" id="materials_table">
+          <thead>
+            <tr>
+              <th>ยี่ห้อ</th>
+              <th>รหัส</th>
+              <th>ชื่อวัสดุ</th>
+              <th>เลขที่ใบกำกับภาษี</th>
+              <th>วันที่ใบกำกับ</th>
+              <th class="right">ราคา/หน่วย</th>
+              <th class="right">จำนวน</th>
+              <th class="right">รวม</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="totals">
       <div class="totals__row">
-        <div>รวมค่าวัสดุ</div>
+        <div><strong>รวมค่าวัสดุ</strong></div>
         <div class="mono" id="materials_total">0.00</div>
       </div>
     </div>
   </div>
 
   <!-- ผู้รับเหมาช่วง -->
-  <div class="card mt-12">
+  <div class="sectionCard sectionCard--soft">
     <div class="section-head">
       <div>
         <div class="section-title">ผู้รับเหมาช่วง</div>
-        <div class="muted">ว่าจ้าง / หัก ณ ที่จ่าย (คำนวณจ่ายจริง)</div>
+        <div class="muted">กรอกยอดว่าจ้าง อัตราหัก ณ ที่จ่าย และระบบจะคำนวณยอดจ่ายจริง</div>
       </div>
-      <button class="btn btn-small" type="button" onclick="Subs.addRow()">➕ เพิ่มแถว</button>
+      <button class="btn btn-small" type="button" onclick="Subs.addRow()">
+        <i class="bi bi-plus-lg"></i>
+        <span>เพิ่มแถว</span>
+      </button>
     </div>
 
-    <div class="table-wrap">
-      <table class="table" id="subs_table">
-        <thead>
-          <tr>
-            <th>ชื่อ</th>
-            <th>วันที่</th>
-            <th class="right">ว่าจ้าง</th>
-            <th class="right">% หัก ณ ที่จ่าย</th>
-            <th class="right">หัก (บาท)</th>
-            <th class="right">จ่ายจริง</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div class="tablePanel">
+      <div class="table-wrap">
+        <table class="table" id="subs_table">
+          <thead>
+            <tr>
+              <th>ชื่อ</th>
+              <th>วันที่</th>
+              <th class="right">ยอดว่าจ้าง</th>
+              <th class="right">% หัก ณ ที่จ่าย</th>
+              <th class="right">ยอดหัก (บาท)</th>
+              <th class="right">ยอดจ่ายจริง</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="totals">
       <div class="totals__row">
-        <div>รวมจ่ายผู้รับเหมาช่วง</div>
+        <div><strong>รวมจ่ายผู้รับเหมาช่วง</strong></div>
         <div class="mono" id="subs_total">0.00</div>
       </div>
     </div>
   </div>
 
   <!-- ค่าใช้จ่ายอื่น -->
-  <div class="card mt-12">
+  <div class="sectionCard sectionCard--soft">
     <div class="section-head">
       <div>
         <div class="section-title">ค่าใช้จ่ายอื่น</div>
-        <div class="muted">เช่น น้ำมัน, ค่าแรงรายวัน, ขนส่ง ฯลฯ (แยกหมวดได้)</div>
+        <div class="muted">เช่น น้ำมัน ค่าแรงรายวัน ขนส่ง หรือค่าใช้จ่ายทั่วไปอื่น ๆ</div>
       </div>
-      <button class="btn btn-small" type="button" onclick="Expenses.addRow()">➕ เพิ่มแถว</button>
+      <button class="btn btn-small" type="button" onclick="Expenses.addRow()">
+        <i class="bi bi-plus-lg"></i>
+        <span>เพิ่มแถว</span>
+      </button>
     </div>
 
-    <div class="table-wrap">
-      <table class="table" id="expenses_table">
-        <thead>
-          <tr>
-            <th>หมวด</th>
-            <th>รายการ</th>
-            <th>วันที่</th>
-            <th class="right">จำนวนเงิน</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div class="tablePanel">
+      <div class="table-wrap">
+        <table class="table" id="expenses_table">
+          <thead>
+            <tr>
+              <th>หมวด</th>
+              <th>รายการ</th>
+              <th>วันที่</th>
+              <th class="right">จำนวนเงิน</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="totals">
       <div class="totals__row">
-        <div>รวมค่าใช้จ่ายอื่น</div>
+        <div><strong>รวมค่าใช้จ่ายอื่น</strong></div>
         <div class="mono" id="expenses_total">0.00</div>
       </div>
     </div>
   </div>
 
   <!-- เงินเบิกล่วงหน้า -->
-  <div class="card mt-12">
+  <div class="sectionCard sectionCard--soft">
     <div class="section-head">
       <div>
         <div class="section-title">เงินเบิกล่วงหน้า</div>
-        <div class="muted">กรอกว่าเบิกค่าอะไร / วันที่ / ยอดเงิน (เพิ่มแถวได้)</div>
+        <div class="muted">กรอกว่าเบิกค่าอะไร วันที่ และจำนวนเงิน</div>
       </div>
-      <button class="btn btn-small" type="button" onclick="Advances.addRow()">➕ เพิ่มแถว</button>
+      <button class="btn btn-small" type="button" onclick="Advances.addRow()">
+        <i class="bi bi-plus-lg"></i>
+        <span>เพิ่มแถว</span>
+      </button>
     </div>
 
-    <div class="table-wrap">
-      <table class="table" id="advances_table">
-        <thead>
-          <tr>
-            <th>รายการ</th>
-            <th>วันที่</th>
-            <th class="right">จำนวนเงิน</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <div class="tablePanel">
+      <div class="table-wrap">
+        <table class="table" id="advances_table">
+          <thead>
+            <tr>
+              <th>รายการ</th>
+              <th>วันที่</th>
+              <th class="right">จำนวนเงิน</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="totals">
       <div class="totals__row">
-        <div>รวมเงินเบิกล่วงหน้า</div>
+        <div><strong>รวมเงินเบิกล่วงหน้า</strong></div>
         <div class="mono" id="advances_total">0.00</div>
       </div>
     </div>
   </div>
 
-</div>
+  <div class="stickyActionBar">
+    <div class="stickyActionBar__grid">
+      <div class="summaryBox">
+        <div class="summaryBox__label">รวมต้นทุนทั้งหมด</div>
+        <div class="summaryBox__value mono" id="grand_total">0.00</div>
+        <div class="hint">คำนวณจากค่าวัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่น + เงินเบิกล่วงหน้า</div>
+      </div>
 
-<div class="card mt-12">
-  <div class="grid grid-3">
-    <div>
-      <div class="label">รวมทั้งหมด (ค่าวัสดุ + ผู้รับเหมาช่วง + อื่นๆ + เงินเบิกล่วงหน้า)</div>
-      <div class="mono big" id="grand_total">0.00</div>
-    </div>
-    <div class="muted">
-      <div class="label">หมายเหตุ</div>
-      <div>คุณสามารถกลับมาแก้ไขข้อมูลโครงการนี้ได้ตลอด และค้นหาได้จากรหัส/ชื่อโครงการ</div>
-    </div>
-    <div class="right">
-      <button class="btn btn-primary" type="button" onclick="ProjectForm.save()">💾 บันทึก</button>
-      {% if project %}
-        <button class="btn btn-danger" type="button" onclick="ProjectForm.remove({{ project.id }})">🗑️ ลบ</button>
-      {% endif %}
-      <div class="hint" id="save_hint"></div>
+      <div class="noteBox">
+        <div class="label">หมายเหตุ</div>
+        <div>คุณสามารถกลับมาแก้ไขข้อมูลโครงการนี้ได้ตลอด และค้นหาได้จากรหัสหรือชื่อโครงการ</div>
+        <div class="hint" id="save_hint"></div>
+      </div>
+
+      <div class="actionButtons">
+        <button class="btn btn-primary" type="button" onclick="ProjectForm.save()">
+          <i class="bi bi-check2-circle"></i>
+          <span>บันทึกโครงการ</span>
+        </button>
+        {% if project %}
+          <button class="btn btn-danger" type="button" onclick="ProjectForm.remove({{ project.id }})">
+            <i class="bi bi-trash3"></i>
+            <span>ลบโครงการ</span>
+          </button>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -311,6 +519,7 @@
       {% endfor %}
     {% endif %}
   ],
+
   "subcontractors": [
     {% if project.subcontractors %}
       {% for s in project.subcontractors %}
@@ -325,6 +534,7 @@
       {% endfor %}
     {% endif %}
   ],
+
   "expenses": [
     {% if project.expenses %}
       {% for e in project.expenses %}
@@ -338,6 +548,7 @@
       {% endfor %}
     {% endif %}
   ],
+
   "advances": [
     {% if project.advances %}
       {% for a in project.advances %}
@@ -363,7 +574,6 @@
   "end_date": "",
   "work_days": 0,
   "status": "IN_PROGRESS",
-
   "materials": [],
   "subcontractors": [],
   "expenses": [],

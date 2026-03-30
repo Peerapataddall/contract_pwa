@@ -4,266 +4,535 @@
 {% block content %}
 
 {# =========================================================
-   ✅ LIST PAGE UPDATE
-   - Desktop = Table, Mobile = Cards (กัน CSS หลุดบน Render)
+   ✅ PROJECT LIST UI REDESIGN
+   - Modern SaaS style
+   - Desktop = Table, Mobile = Cards
    - เพิ่มคอลัมน์ “งบประมาณ” + “กำไร/ขาดทุน”
-   - งบประมาณ: p.sales_doc.grand_total (แสดงเมื่อ status=APPROVED)
-   - กำไร/ขาดทุน: งบประมาณ - ต้นทุนรวม (ติดลบได้)
-   - ✅ FIX: Decimal vs float -> แปลงเป็น float ก่อนคำนวณ (|float)
+   - งบประมาณ: p.sales_doc.grand_total
+   - รองรับสถานะไทย/อังกฤษ
+   - กัน None / กัน sales_doc ไม่มี / กัน grand_total ว่าง
+   - กำไร/ขาดทุน: งบประมาณ - ต้นทุนรวม
+   - Decimal safe: ใช้ |float ก่อนคำนวณ
    ========================================================= #}
 
 <style>
-  /* --- Search layout --- */
-  .search{
-    display: grid;
-    grid-template-columns: 1fr auto auto;
-    gap: 10px;
-    align-items: center;
-    margin: 12px 0 14px;
+  .projectPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
   }
-  .search .input{ width: 100%; min-width: 0; }
 
-  /* --- Desktop / Mobile switch (hard enforce) --- */
-  .desktop-table{ display: block; }
-  .mobile-cards{ display: none; }
+  .projectHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .projectHero__left h1{
+    margin:0;
+  }
+
+  .projectHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
+
+  .projectHero__right{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+
+  .heroBadge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    min-height:40px;
+    padding:8px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F5FAFF 0%, #EAF3FF 100%);
+    color:var(--text);
+    font-weight:700;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .searchCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .search{
+    display:grid;
+    grid-template-columns: 1fr auto auto;
+    gap:10px;
+    align-items:center;
+    margin:0;
+  }
+
+  .search .input{
+    width:100%;
+    min-width:0;
+  }
+
+  .tableCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .tableTop{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .tableTop__meta{
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .desktop-table{ display:block; }
+  .mobile-cards{ display:none; }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border-radius:18px;
+  }
+
+  .table{
+    min-width:1080px;
+  }
+
+  .projectName{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .projectName__title{
+    font-weight:700;
+    color:var(--primary);
+  }
+
+  .projectName__title:hover{
+    text-decoration:underline;
+  }
+
+  .projectName__sub{
+    font-size:12px;
+    color:var(--text-soft);
+  }
+
+  .actionCell{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  .pill{
+    white-space:nowrap;
+  }
+
+  .pl-pos{
+    color:#15803D;
+    font-weight:800;
+  }
+
+  .pl-neg{
+    color:#C2410C;
+    font-weight:800;
+  }
+
+  .mobile-cards{
+    gap:12px;
+  }
+
+  .mcard{
+    border-radius:20px;
+    padding:16px;
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .mcard__top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    margin-bottom:12px;
+  }
+
+  .mcard__code{
+    display:inline-flex;
+    align-items:center;
+    min-height:30px;
+    padding:6px 10px;
+    border-radius:999px;
+    background:#EEF5FF;
+    border:1px solid var(--line);
+    color:var(--text);
+    font-size:12px;
+    font-weight:700;
+  }
+
+  .mcard__title{
+    margin-top:8px;
+  }
+
+  .mcard__titlelink{
+    display:inline-block;
+    font-size:16px;
+    font-weight:800;
+    color:var(--text);
+    text-decoration:none;
+  }
+
+  .mcard__titlelink:hover{
+    color:var(--primary);
+    text-decoration:underline;
+  }
+
+  .mcard__customer{
+    margin-top:4px;
+    color:var(--text-soft);
+    font-size:13px;
+    font-weight:600;
+  }
+
+  .mcard__grid{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .mcard__stat{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px;
+  }
+
+  .mcard__statLabel{
+    font-size:12px;
+    color:var(--text-soft);
+    font-weight:600;
+  }
+
+  .mcard__statValue{
+    margin-top:6px;
+    font-weight:800;
+    color:var(--text);
+  }
+
+  .mcard__wide{
+    grid-column:1 / -1;
+  }
+
+  .mcard__actions{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .mcard__actions .btn{
+    width:100%;
+    justify-content:center;
+  }
+
+  .emptyState{
+    border:1px dashed var(--line-strong);
+    border-radius:18px;
+    padding:22px;
+    text-align:center;
+    color:var(--text-soft);
+    background:linear-gradient(180deg, #F9FCFF 0%, #F3F8FF 100%);
+  }
 
   @media (max-width: 820px){
     .search{
       grid-template-columns: 1fr auto;
     }
-    .search .btn-ghost{ grid-column: 1 / -1; } /* ปุ่มล้างลงบรรทัดใหม่ */
-    .desktop-table{ display: none !important; }
-    .mobile-cards{ display: grid !important; gap: 12px; }
+
+    .search .btn-ghost{
+      grid-column: 1 / -1;
+    }
+
+    .desktop-table{
+      display:none !important;
+    }
+
+    .mobile-cards{
+      display:grid !important;
+    }
   }
 
-  /* --- Mobile card styles (safe even if app.css missing) --- */
-  .mcard{
-    border-radius: 18px;
-    padding: 14px 14px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.10);
-    backdrop-filter: blur(10px);
-  }
-  .mcard__row{
-    display: grid;
-    grid-template-columns: 96px 1fr;
-    gap: 12px;
-    align-items: start;
-    padding: 8px 0;
-    border-top: 1px solid rgba(255,255,255,0.08);
-  }
-  .mcard__row:first-child{
-    border-top: 0;
-    padding-top: 0;
-  }
-  .mcard__label{
-    font-size: 12px;
-    opacity: .72;
-  }
-  .mcard__value{
-    font-weight: 800;
-    min-width: 0;
-    word-break: break-word;
-  }
-  .mcard__titlelink{
-    display: inline-block;
-    font-weight: 900;
-    text-decoration: none;
-  }
-  .mcard__titlelink:hover{ text-decoration: underline; }
+  @media (max-width: 640px){
+    .projectHero{
+      padding:16px;
+    }
 
-  .mcard__actions{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .mcard__actions .btn{
-    width: 100%;
-    justify-content: center;
+    .mcard__grid{
+      grid-template-columns: 1fr;
+    }
+
+    .mcard__wide{
+      grid-column:auto;
+    }
   }
 
-  /* Empty state */
-  .empty{
-    padding: 18px;
-    text-align: center;
-    opacity: .75;
+  @media (min-width: 821px){
+    .mobile-cards{
+      display:none !important;
+    }
   }
-
-  /* Profit/Loss coloring (optional, safe) */
-  .pl-pos{ color: rgba(120, 255, 180, .95); }
-  .pl-neg{ color: rgba(255, 140, 140, .95); }
 </style>
 
-<div class="pagehead">
-  <div>
-    <h1>รายการโครงการ</h1>
-    <div class="muted">ค้นหาได้จาก “ชื่อโครงการ” หรือ “รหัสโครงการ”</div>
+<div class="projectPage">
+  <div class="projectHero">
+    <div class="projectHero__left">
+      <h1>รายการโครงการ</h1>
+      <div class="projectHero__sub">ค้นหาได้จากชื่อโครงการ หรือรหัสโครงการ พร้อมดูงบประมาณ ต้นทุน และกำไร/ขาดทุนในหน้าเดียว</div>
+    </div>
+
+    <div class="projectHero__right">
+      <div class="heroBadge">
+        <i class="bi bi-kanban-fill"></i>
+        <span>จำนวน {{ projects|length }} รายการ</span>
+      </div>
+
+      <a class="btn btn-primary" href="{{ url_for('pages.project_new') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>เพิ่มโครงการ</span>
+      </a>
+    </div>
   </div>
-  <div class="actions">
-    <a class="btn btn-primary" href="{{ url_for('pages.project_new') }}">➕ เพิ่มโครงการ</a>
+
+  <div class="searchCard">
+    <form class="search" method="get" action="{{ url_for('pages.project_list') }}">
+      <input class="input" name="q" value="{{ q }}" placeholder="ค้นหา: ชื่อโครงการ / รหัสโครงการ" />
+      <button class="btn" type="submit">
+        <i class="bi bi-search"></i>
+        <span>ค้นหา</span>
+      </button>
+      {% if q %}
+        <a class="btn btn-ghost" href="{{ url_for('pages.project_list') }}">
+          <i class="bi bi-arrow-counterclockwise"></i>
+          <span>ล้าง</span>
+        </a>
+      {% endif %}
+    </form>
   </div>
-</div>
 
-<form class="search" method="get" action="{{ url_for('pages.project_list') }}">
-  <input class="input" name="q" value="{{ q }}" placeholder="ค้นหา: ชื่อโครงการ / รหัสโครงการ" />
-  <button class="btn" type="submit">ค้นหา</button>
-  {% if q %}
-    <a class="btn btn-ghost" href="{{ url_for('pages.project_list') }}">ล้าง</a>
-  {% endif %}
-</form>
+  <div class="tableCard">
+    <div class="tableTop">
+      <div>
+        <div class="section-title">รายการทั้งหมด</div>
+        <div class="tableTop__meta">แสดงงบประมาณจากใบเสนอราคาของโครงการเมื่อเอกสารถูกอนุมัติแล้ว</div>
+      </div>
+    </div>
 
-<div class="card">
+    {# ===== Desktop: table ===== #}
+    <div class="table-wrap desktop-table">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:110px;">รหัส</th>
+            <th>ชื่อโครงการ</th>
+            <th style="width:140px;">สถานะ</th>
+            <th style="width:140px;" class="right">งบประมาณ</th>
+            <th style="width:140px;" class="right">ต้นทุนรวม</th>
+            <th style="width:150px;" class="right">กำไร/ขาดทุน</th>
+            <th style="width:190px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in projects %}
 
-  {# ===== Desktop: table ===== #}
-  <div class="table-wrap desktop-table">
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width: 110px;">รหัส</th>
-          <th>ชื่อโครงการ</th>
-          <th style="width: 140px;">สถานะ</th>
-          <th style="width: 140px;" class="right">งบประมาณ</th>
-          <th style="width: 140px;" class="right">ต้นทุนรวม</th>
-          <th style="width: 150px;" class="right">กำไร/ขาดทุน</th>
-          <th style="width: 180px;"></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for p in projects %}
+          {% set _doc = p.sales_doc %}
+          {% set _doc_status = ((_doc.status if _doc else '') or '') %}
+          {% set _doc_status_upper = _doc_status|upper %}
+          {% set _doc_status_is_approved = (_doc_status in ['อนุมัติ', 'อนุมัติแล้ว']) or (_doc_status_upper == 'APPROVED') %}
+          {% set _budget_raw = (_doc.grand_total if _doc and _doc_status_is_approved and _doc.grand_total is not none else none) %}
+          {% set _budget = (_budget_raw|float) if _budget_raw is not none else none %}
+          {% set _cost = (p.total_cost or 0)|float %}
+          {% set _pl = (_budget - _cost) if _budget is not none else none %}
 
-        {# ✅ งบประมาณจาก QT (sales_doc) เฉพาะ APPROVED #}
+          <tr>
+            <td class="mono">{{ p.code }}</td>
+
+            <td>
+              <div class="projectName">
+                <a class="projectName__title" href="{{ url_for('pages.project_view', pid=p.id) }}">{{ p.name }}</a>
+                {% if p.customer_name %}
+                  <div class="projectName__sub">ลูกค้า: {{ p.customer_name }}</div>
+                {% endif %}
+                {% if _doc and _doc.doc_no %}
+                  <div class="projectName__sub">อ้างอิงเอกสาร: {{ _doc.doc_no }}</div>
+                {% endif %}
+              </div>
+            </td>
+
+            <td>
+              <span class="pill pill-{{ p.status|lower }}">
+                {{ {'IN_PROGRESS':'กำลังทำงาน','DEFECT':'กำลังเก็บ Defect','DONE':'งานจบ'}[p.status] if p.status in ['IN_PROGRESS','DEFECT','DONE'] else p.status }}
+              </span>
+            </td>
+
+            <td class="right mono">
+              {% if _budget is not none %}
+                {{ '%.2f'|format(_budget) }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td class="right mono">{{ '%.2f'|format(_cost) }}</td>
+
+            <td class="right mono">
+              {% if _pl is not none %}
+                <span class="{{ 'pl-neg' if _pl < 0 else 'pl-pos' }}">
+                  {{ '%.2f'|format(_pl) }}
+                </span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td class="right">
+              <div class="actionCell">
+                <a class="btn btn-small" href="{{ url_for('pages.project_view', pid=p.id) }}">
+                  <i class="bi bi-eye"></i>
+                  <span>ดู</span>
+                </a>
+                <a class="btn btn-small" href="{{ url_for('pages.project_edit', pid=p.id) }}">
+                  <i class="bi bi-pencil-square"></i>
+                  <span>แก้ไข</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="center" style="padding:22px; color:var(--text-soft);">ยังไม่มีข้อมูล</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# ===== Mobile: card list ===== #}
+    <div class="mobile-cards">
+      {% for p in projects %}
+        {% set _st = (p.status or '') %}
         {% set _doc = p.sales_doc %}
-        {% set _budget = (_doc.grand_total|float) if _doc and (_doc.status or '') == 'APPROVED' else None %}
+        {% set _doc_status = ((_doc.status if _doc else '') or '') %}
+        {% set _doc_status_upper = _doc_status|upper %}
+        {% set _doc_status_is_approved = (_doc_status in ['อนุมัติ', 'อนุมัติแล้ว']) or (_doc_status_upper == 'APPROVED') %}
+        {% set _budget_raw = (_doc.grand_total if _doc and _doc_status_is_approved and _doc.grand_total is not none else none) %}
+        {% set _budget = (_budget_raw|float) if _budget_raw is not none else none %}
         {% set _cost = (p.total_cost or 0)|float %}
-        {% set _pl = (_budget - _cost) if _budget is not none else None %}
+        {% set _pl = (_budget - _cost) if _budget is not none else none %}
 
-        <tr>
-          <td class="mono">{{ p.code }}</td>
-          <td>
-            <a class="link" href="{{ url_for('pages.project_view', pid=p.id) }}">{{ p.name }}</a>
-            {% if p.customer_name %}
-              <div class="muted">ลูกค้า: {{ p.customer_name }}</div>
-            {% endif %}
-          </td>
-          <td>
-            <span class="pill pill-{{ p.status|lower }}">
-              {{ {'IN_PROGRESS':'กำลังทำงาน','DEFECT':'กำลังเก็บ Defect','DONE':'งานจบ'}[p.status] if p.status in ['IN_PROGRESS','DEFECT','DONE'] else p.status }}
-            </span>
-          </td>
+        <div class="mcard">
+          <div class="mcard__top">
+            <div>
+              <div class="mcard__code mono">{{ p.code }}</div>
+              <div class="mcard__title">
+                <a class="mcard__titlelink" href="{{ url_for('pages.project_view', pid=p.id) }}">
+                  {{ p.name }}
+                </a>
+              </div>
+              {% if p.customer_name %}
+                <div class="mcard__customer">ลูกค้า: {{ p.customer_name }}</div>
+              {% endif %}
+              {% if _doc and _doc.doc_no %}
+                <div class="mcard__customer">อ้างอิงเอกสาร: {{ _doc.doc_no }}</div>
+              {% endif %}
+            </div>
 
-          <td class="right mono">
-            {% if _budget is not none %}
-              {{ '%.2f'|format(_budget) }}
-            {% else %}
-              -
-            {% endif %}
-          </td>
-
-          <td class="right mono">{{ '%.2f'|format(_cost) }}</td>
-
-          <td class="right mono">
-            {% if _pl is not none %}
-              <span class="{{ 'pl-neg' if _pl < 0 else 'pl-pos' }}">
-                {{ '%.2f'|format(_pl) }}
+            <div>
+              <span class="pill pill-{{ _st|lower }}">
+                {{ {'IN_PROGRESS':'กำลังทำงาน','DEFECT':'กำลังเก็บ Defect','DONE':'งานจบ'}[_st] if _st in ['IN_PROGRESS','DEFECT','DONE'] else _st }}
               </span>
-            {% else %}
-              -
-            {% endif %}
-          </td>
+            </div>
+          </div>
 
-          <td class="right">
-            <a class="btn btn-small" href="{{ url_for('pages.project_edit', pid=p.id) }}">✏️ แก้ไข</a>
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="7" class="muted center" style="padding: 18px;">ยังไม่มีข้อมูล</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+          <div class="mcard__grid">
+            <div class="mcard__stat">
+              <div class="mcard__statLabel">งบประมาณ</div>
+              <div class="mcard__statValue mono">
+                {% if _budget is not none %}
+                  {{ '%.2f'|format(_budget) }}
+                {% else %}
+                  -
+                {% endif %}
+              </div>
+            </div>
 
-  {# ===== Mobile: card list ===== #}
-  <div class="mobile-cards">
-    {% for p in projects %}
-      {% set _st = (p.status or '') %}
+            <div class="mcard__stat">
+              <div class="mcard__statLabel">ต้นทุนรวม</div>
+              <div class="mcard__statValue mono">{{ '%.2f'|format(_cost) }}</div>
+            </div>
 
-      {% set _doc = p.sales_doc %}
-      {% set _budget = (_doc.grand_total|float) if _doc and (_doc.status or '') == 'APPROVED' else None %}
-      {% set _cost = (p.total_cost or 0)|float %}
-      {% set _pl = (_budget - _cost) if _budget is not none else None %}
+            <div class="mcard__stat mcard__wide">
+              <div class="mcard__statLabel">กำไร / ขาดทุน</div>
+              <div class="mcard__statValue mono">
+                {% if _pl is not none %}
+                  <span class="{{ 'pl-neg' if _pl < 0 else 'pl-pos' }}">
+                    {{ '%.2f'|format(_pl) }}
+                  </span>
+                {% else %}
+                  -
+                {% endif %}
+              </div>
+            </div>
+          </div>
 
-      <div class="mcard">
-
-        <div class="mcard__row">
-          <div class="mcard__label">รหัส</div>
-          <div class="mcard__value mono">{{ p.code }}</div>
-        </div>
-
-        <div class="mcard__row">
-          <div class="mcard__label">ชื่อโครงการ</div>
-          <div class="mcard__value">
-            <a class="mcard__titlelink" href="{{ url_for('pages.project_view', pid=p.id) }}">
-              {{ p.name }}
+          <div class="mcard__actions">
+            <a class="btn btn-small" href="{{ url_for('pages.project_view', pid=p.id) }}">
+              <i class="bi bi-eye"></i>
+              <span>ดู</span>
             </a>
-            {% if p.customer_name %}
-              <div class="muted" style="font-weight:800; margin-top:4px;">ลูกค้า: {{ p.customer_name }}</div>
-            {% endif %}
+            <a class="btn btn-small" href="{{ url_for('pages.project_edit', pid=p.id) }}">
+              <i class="bi bi-pencil-square"></i>
+              <span>แก้ไข</span>
+            </a>
           </div>
         </div>
+      {% endfor %}
 
-        <div class="mcard__row">
-          <div class="mcard__label">สถานะ</div>
-          <div class="mcard__value">
-            <span class="pill pill-{{ _st|lower }}">
-              {{ {'IN_PROGRESS':'กำลังทำงาน','DEFECT':'กำลังเก็บ Defect','DONE':'งานจบ'}[_st] if _st in ['IN_PROGRESS','DEFECT','DONE'] else _st }}
-            </span>
-          </div>
+      {% if not projects %}
+        <div class="emptyState">
+          ไม่พบโครงการ
         </div>
-
-        <div class="mcard__row">
-          <div class="mcard__label">งบประมาณ</div>
-          <div class="mcard__value right mono">
-            {% if _budget is not none %}
-              {{ '%.2f'|format(_budget) }}
-            {% else %}
-              -
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="mcard__row">
-          <div class="mcard__label">ต้นทุนรวม</div>
-          <div class="mcard__value right mono">{{ '%.2f'|format(_cost) }}</div>
-        </div>
-
-        <div class="mcard__row">
-          <div class="mcard__label">กำไร/ขาดทุน</div>
-          <div class="mcard__value right mono">
-            {% if _pl is not none %}
-              <span class="{{ 'pl-neg' if _pl < 0 else 'pl-pos' }}">
-                {{ '%.2f'|format(_pl) }}
-              </span>
-            {% else %}
-              -
-            {% endif %}
-          </div>
-        </div>
-
-        <div class="mcard__actions">
-          <a class="btn btn-small" href="{{ url_for('pages.project_view', pid=p.id) }}">ดู</a>
-          <a class="btn btn-small" href="{{ url_for('pages.project_edit', pid=p.id) }}">✏️ แก้ไข</a>
-        </div>
-      </div>
-    {% endfor %}
-
-    {% if not projects %}
-      <div class="empty">
-        ไม่พบโครงการ
-      </div>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
-
 </div>
 
 {% endblock %}

@@ -6,99 +6,475 @@
 {% endblock %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>Dashboard รายรับ</h1>
-    <div class="muted">รายรับนับจากใบกำกับภาษี (IV) ที่สถานะ APPROVED</div>
-  </div>
-  <div class="actions">
-    <form method="get" action="{{ url_for('pages.dashboard_income') }}" style="display:flex; gap:8px; align-items:center;">
-      <select class="input" name="year" style="width:120px;">
-        {% for y in years %}
-          <option value="{{ y }}" {{ 'selected' if y==year else '' }}>{{ y }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn-primary" type="submit">ดู</button>
-    </form>
-  </div>
-</div>
+<style>
+  .incomePage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
 
-<div class="grid2" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-  <div class="card">
-    <div class="muted" style="font-weight:700;">รายรับรวม (Gross)</div>
-    <div style="font-size:24px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_income) }}</div>
-    <div class="muted" style="margin-top:6px;">ปี {{ year }}</div>
-  </div>
+  .dashFilters{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:end;
+    justify-content:space-between;
+  }
 
-  <div class="card">
-    <div style="display:flex; gap:10px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:140px;">
-        <div class="muted" style="font-weight:700;">VAT รวม</div>
-        <div style="font-size:18px; font-weight:900;" class="mono">{{ "{:,.2f}".format(total_vat) }}</div>
-      </div>
-      <div style="flex:1; min-width:140px;">
-        <div class="muted" style="font-weight:700;">WHT รวม</div>
-        <div style="font-size:18px; font-weight:900;" class="mono">{{ "{:,.2f}".format(total_wht) }}</div>
-      </div>
-      <div style="flex:1; min-width:140px;">
-        <div class="muted" style="font-weight:700;">ยอดชำระ (Net)</div>
-        <div style="font-size:18px; font-weight:900;" class="mono">{{ "{:,.2f}".format(total_net) }}</div>
-      </div>
-    </div>
-    <div class="muted" style="margin-top:8px;">* Gross = รวม VAT, Net = หลังหัก WHT</div>
-  </div>
-</div>
+  .dashFilters .left{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:end;
+  }
 
-<div class="card" style="margin-top:12px;">
-  <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-end;">
+  .filterCard,
+  .chartCard,
+  .summaryCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .filterBox{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px;
+  }
+
+  .heroCard{
+    position:relative;
+    overflow:hidden;
+    border:1px solid var(--line);
+    border-radius:24px;
+    padding:20px;
+    background:
+      radial-gradient(circle at top right, rgba(255,200,87,.14), transparent 26%),
+      radial-gradient(circle at bottom left, rgba(59,130,246,.10), transparent 28%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .heroStats{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:12px;
+    margin-top:16px;
+  }
+
+  .heroMini{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFFFF 0%, #FFF9EA 100%);
+    border-radius:18px;
+    padding:14px;
+  }
+
+  .heroMini .k{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-bottom:6px;
+    font-weight:600;
+  }
+
+  .heroMini .v{
+    font-size:20px;
+    font-weight:800;
+    color:var(--text);
+  }
+
+  .grid2{
+    display:grid;
+    grid-template-columns:1.45fr .95fr;
+    gap:14px;
+  }
+
+  .mono{
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  .chartMeta{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .metricPill{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFDF8 0%, #FFF7E7 100%);
+    border-radius:16px;
+    padding:12px 14px;
+  }
+
+  .metricPill .k{
+    font-size:12px;
+    color:var(--text-soft);
+    font-weight:600;
+  }
+
+  .metricPill .v{
+    font-weight:800;
+    margin-top:6px;
+    color:var(--text);
+  }
+
+  .listClean{
+    display:grid;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .listItem{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:center;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFFFF 0%, #FFF9EF 100%);
+    border-radius:16px;
+    padding:14px;
+  }
+
+  .emptyState{
+    border:1px dashed var(--line-strong);
+    border-radius:18px;
+    padding:18px;
+    text-align:center;
+    color:var(--text-soft);
+    margin-top:12px;
+    background:linear-gradient(180deg, #FFFDF8 0%, #FFF8EE 100%);
+  }
+
+  .summaryGrid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:12px;
+  }
+
+  @media (max-width: 960px){
+    .heroStats{ grid-template-columns:1fr 1fr; }
+    .grid2{ grid-template-columns:1fr; }
+    .chartMeta{ grid-template-columns:1fr; }
+    .summaryGrid{ grid-template-columns:1fr; }
+  }
+
+  @media (max-width: 680px){
+    .heroStats{ grid-template-columns:1fr; }
+  }
+</style>
+
+<div class="incomePage">
+  <div class="pagehead">
     <div>
-      <h2 style="margin:0;">รายรับรายเดือน</h2>
-      <div class="muted">กราฟรายรับจาก IV (APPROVED) แยกตามเดือน</div>
+      <h1>Dashboard รายรับ</h1>
+      <div class="muted">รายรับนับจากใบกำกับภาษี (IV) ที่สถานะอนุมัติแล้ว</div>
     </div>
-    <div class="muted mono">เอกสาร/เดือน: {{ counts|sum }}</div>
   </div>
-  <div style="margin-top:10px;">
-    <canvas id="incomeChart" height="90"></canvas>
+
+  <div class="filterCard">
+    <form method="get" action="{{ url_for('pages.dashboard_income') }}" class="dashFilters">
+      <div class="left">
+        <div>
+          <label class="label">รูปแบบการดูข้อมูล</label>
+          <select class="input" name="income_mode" id="income_mode" onchange="toggleIncomeFilters()">
+            <option value="day" {{ 'selected' if mode == 'day' else '' }}>รายวัน</option>
+            <option value="month" {{ 'selected' if mode == 'month' else '' }}>รายเดือน</option>
+            <option value="year" {{ 'selected' if mode == 'year' else '' }}>รายปี</option>
+            <option value="range" {{ 'selected' if mode == 'range' else '' }}>ช่วงวันที่</option>
+          </select>
+        </div>
+
+        <div id="income-filter-day" class="filterBox" style="{{ '' if mode == 'day' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">ปี</label>
+              <select class="input" name="income_year">
+                {% for y in years %}
+                  <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">เดือน</label>
+              <select class="input" name="income_month">
+                {% for m in range(1,13) %}
+                  <option value="{{ m }}" {{ 'selected' if m == month else '' }}>{{ "%02d"|format(m) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">วัน</label>
+              <select class="input" name="income_day">
+                {% for d in range(1,32) %}
+                  <option value="{{ d }}" {{ 'selected' if d == day else '' }}>{{ "%02d"|format(d) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="income-filter-month" class="filterBox" style="{{ '' if mode == 'month' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">ปี</label>
+              <select class="input" name="income_year">
+                {% for y in years %}
+                  <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">เดือน</label>
+              <select class="input" name="income_month">
+                {% for m in range(1,13) %}
+                  <option value="{{ m }}" {{ 'selected' if m == month else '' }}>{{ "%02d"|format(m) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="income-filter-year" class="filterBox" style="{{ '' if mode == 'year' else 'display:none;' }}">
+          <div>
+            <label class="label">ปี</label>
+            <select class="input" name="income_year">
+              {% for y in years %}
+                <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div id="income-filter-range" class="filterBox" style="{{ '' if mode == 'range' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">วันที่เริ่มต้น</label>
+              <input class="input" type="date" name="income_start_date" value="{{ start_date or '' }}">
+            </div>
+            <div>
+              <label class="label">วันที่สิ้นสุด</label>
+              <input class="input" type="date" name="income_end_date" value="{{ end_date or '' }}">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-funnel-fill"></i>
+            <span>ดูข้อมูล</span>
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <div class="mt-12 muted">
+      ช่วงข้อมูลที่แสดง: <b>{{ period_label }}</b>
+    </div>
+  </div>
+
+  <div class="heroCard">
+    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+      <div>
+        <div class="muted" style="font-size:12px;">INCOME ANALYTICS</div>
+        <h2 style="margin:4px 0 0 0;">ภาพรวมรายรับจากใบกำกับภาษี</h2>
+        <div class="muted" style="margin-top:6px;">{{ chart_title }} · {{ bucket_hint }}</div>
+      </div>
+      <div class="muted mono">ช่วงข้อมูล {{ period_label }}</div>
+    </div>
+
+    <div class="heroStats">
+      {% for card in summary_cards %}
+        <div class="heroMini">
+          <div class="k">{{ card.label }}</div>
+          <div class="v mono">
+            {% if card.label == 'จำนวนเอกสาร' %}
+              {{ card.value }}
+            {% else %}
+              {{ "{:,.2f}".format(card.value or 0) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="chartCard">
+      <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">{{ chart_title }}</h2>
+          <div class="muted">{{ bucket_hint }}</div>
+        </div>
+        <div class="muted mono">เอกสารในกราฟ: {{ counts|sum }}</div>
+      </div>
+
+      {% if labels and series and (series|sum) > 0 %}
+        <div style="margin-top:12px; height:360px;">
+          <canvas id="incomeChart"></canvas>
+        </div>
+
+        <div class="chartMeta">
+          <div class="metricPill">
+            <div class="k">รายรับรวมในกราฟ</div>
+            <div class="v mono">{{ "{:,.2f}".format((series|sum) or 0) }}</div>
+          </div>
+          <div class="metricPill">
+            <div class="k">ค่าเฉลี่ยต่อช่วง</div>
+            <div class="v mono">{{ "{:,.2f}".format(avg_per_bucket or 0) }}</div>
+          </div>
+          <div class="metricPill">
+            <div class="k">ค่าสูงสุดในกราฟ</div>
+            <div class="v mono">{{ "{:,.2f}".format(max_series_value or 0) }}</div>
+          </div>
+        </div>
+      {% else %}
+        <div class="emptyState">
+          <div style="font-weight:700;">ยังไม่มีข้อมูลรายรับในช่วงที่เลือก</div>
+          <div class="muted" style="margin-top:4px;">ลองเปลี่ยนช่วงวันที่ หรืออนุมัติเอกสาร IV เพิ่มเติม</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="chartCard">
+      <div>
+        <div class="section-title">Top 5 เอกสารรายรับ</div>
+        <div class="muted">เรียงจากยอดรวมสูงสุด</div>
+      </div>
+
+      {% if top_docs %}
+        <div class="listClean">
+          {% for row in top_docs %}
+            <div class="listItem">
+              <div>
+                <div style="font-weight:700;">{{ row.doc_no }}</div>
+                <div class="muted" style="font-size:12px; margin-top:2px;">{{ row.customer_name }} · {{ row.issue_date.strftime('%d/%m/%Y') if row.issue_date else '-' }}</div>
+              </div>
+              <div class="mono" style="font-weight:800;">{{ "{:,.2f}".format(row.gross_total or 0) }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="emptyState">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="summaryCard">
+    <div class="summaryGrid">
+      <div>
+        <div class="muted" style="font-weight:700;">รายรับรวมก่อนหัก ณ ที่จ่าย</div>
+        <div style="font-size:24px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_income) }}</div>
+        <div class="muted" style="margin-top:6px;">จำนวนเอกสาร {{ total_docs }} ฉบับ</div>
+      </div>
+      <div>
+        <div class="muted" style="font-weight:700;">VAT รวม</div>
+        <div style="font-size:20px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_vat) }}</div>
+      </div>
+      <div>
+        <div class="muted" style="font-weight:700;">ยอดสุทธิหลังหัก ณ ที่จ่าย</div>
+        <div style="font-size:20px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_net) }}</div>
+        <div class="muted" style="margin-top:6px;">หัก ณ ที่จ่ายรวม {{ "{:,.2f}".format(total_wht) }}</div>
+      </div>
+    </div>
+    <div class="muted" style="margin-top:10px;">* รายรับรวม = ยอดก่อนหัก ณ ที่จ่าย, ยอดสุทธิ = หลังหัก ณ ที่จ่าย</div>
   </div>
 </div>
 
 <script>
-  const labels = {{ labels|tojson }};
-  const series = {{ series|tojson }};
-  const counts = {{ counts|tojson }};
+  function toggleIncomeFilters(){
+    const mode = document.getElementById('income_mode')?.value || 'month';
+    ['income-filter-day', 'income-filter-month', 'income-filter-year', 'income-filter-range'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    const active = document.getElementById(`income-filter-${mode}`);
+    if (active) active.style.display = '';
+  }
 
-  const ctx = document.getElementById('incomeChart');
-  new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'รายรับ (Gross)',
-        data: series,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        tooltip: {
-          callbacks: {
-            afterBody: (items) => {
-              const i = items?.[0]?.dataIndex ?? 0;
-              return 'จำนวนเอกสาร: ' + (counts[i] ?? 0);
+  document.addEventListener('DOMContentLoaded', () => {
+    toggleIncomeFilters();
+
+    const labels = {{ labels|tojson }};
+    const series = {{ series|tojson }};
+    const counts = {{ counts|tojson }};
+
+    const ctx = document.getElementById('incomeChart');
+    if (!ctx) return;
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'รายรับรวม',
+          data: series,
+          backgroundColor: '#F7C94A',
+          borderColor: '#EAB308',
+          borderWidth: 1.5,
+          borderRadius: 10,
+          maxBarThickness: 48
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#5F7C99',
+              font: { family: 'Prompt' }
+            }
+          },
+          tooltip: {
+            backgroundColor: '#16324F',
+            titleColor: '#FFFFFF',
+            bodyColor: '#FFFFFF',
+            padding: 12,
+            cornerRadius: 12,
+            callbacks: {
+              label: (context) => {
+                const val = Number(context.raw || 0);
+                return 'รายรับรวม: ' + val.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+              },
+              afterBody: (items) => {
+                const i = items?.[0]?.dataIndex ?? 0;
+                return 'จำนวนเอกสาร: ' + (counts[i] ?? 0);
+              }
             }
           }
-        }
-      },
-      scales: {
-        y: {
-          ticks: {
-            callback: (v) => {
-              try { return Number(v).toLocaleString(); } catch(e){ return v; }
-            }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#5F7C99',
+              font: { family: 'Prompt' }
+            },
+            grid: { display: false },
+            border: { color: '#D3E2F5' }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: '#5F7C99',
+              font: { family: 'Prompt' },
+              callback: (v) => {
+                try { return Number(v).toLocaleString(); } catch(e){ return v; }
+              }
+            },
+            grid: { color: '#E4EFFB' },
+            border: { color: '#D3E2F5' }
           }
         }
       }
-    }
+    });
   });
 </script>
 {% endblock %}

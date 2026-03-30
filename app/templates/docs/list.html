@@ -2,85 +2,566 @@
 {% set title = "เอกสารขาย" %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>เอกสารขาย</h1>
-    <div class="muted">เริ่มจากใบเสนอราคา (QT)</div>
-  </div>
-  <div class="actions">
-    <a class="btn btn-primary" href="{{ url_for('docs.qt_new') }}">+ สร้างใบเสนอราคา</a>
-  </div>
-</div>
+<style>
+  .docsPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
 
+  .docsHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
 
-<div class="card" style="margin-bottom:12px;">
-  <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between;">
-    <div style="display:flex; flex-wrap:wrap; gap:8px;">
-      {% set _types = ["QT","BL","IV","RC"] %}
-      {% for t in _types %}
-        {% set active = (doc_type == t) %}
-        <a class="btn btn-small {{ 'btn-primary' if active else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=t, status=status, q=q) }}">
-          {{ DOC_TITLE.get(t,t) }}
-        </a>
-      {% endfor %}
+  .docsHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
+
+  .docsHero__actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .segmentCard,
+  .searchCard,
+  .tableCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .segmentHead{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+
+  .segmentBlock{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+
+  .segmentLabel{
+    width:100%;
+    font-size:12px;
+    font-weight:700;
+    color:var(--text-soft);
+    margin-bottom:2px;
+  }
+
+  .segmentBtn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:38px;
+    padding:8px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:#FFFFFF;
+    color:var(--text-soft);
+    font-weight:700;
+    box-shadow:var(--shadow-sm);
+    transition:all .16s ease;
+  }
+
+  .segmentBtn:hover{
+    background:var(--bg-soft);
+    color:var(--text);
+  }
+
+  .segmentBtn.is-active{
+    background:linear-gradient(180deg, #EAF3FF 0%, #CCE2FF 100%);
+    border-color:#C2D9F3;
+    color:#1E40AF;
+  }
+
+  .searchForm{
+    display:grid;
+    grid-template-columns:1fr auto auto;
+    gap:10px;
+    align-items:end;
+  }
+
+  .tableTop{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .tableTop__meta{
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .desktop-table{ display:block; }
+  .mobile-cards{ display:none; }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border-radius:18px;
+  }
+
+  .table{
+    min-width:1180px;
+  }
+
+  .docNoLink{
+    font-weight:800;
+    color:var(--primary);
+  }
+
+  .docNoLink:hover{
+    text-decoration:underline;
+  }
+
+  .docTypeBadge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-height:30px;
+    padding:6px 10px;
+    border-radius:999px;
+    background:linear-gradient(180deg, #F5FAFF 0%, #EAF3FF 100%);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-size:12px;
+    font-weight:700;
+  }
+
+  .statusBadge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    min-height:30px;
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+    border:1px solid transparent;
+  }
+
+  .statusBadge--approved{
+    background:var(--success-soft);
+    color:var(--success);
+    border-color:#BEEFCF;
+  }
+
+  .statusBadge--draft{
+    background:var(--primary-soft);
+    color:var(--primary);
+    border-color:#BFD9FF;
+  }
+
+  .statusBadge--void{
+    background:linear-gradient(180deg, #FFF1F1 0%, #FFE2E2 100%);
+    color:#B91C1C;
+    border-color:#FECACA;
+  }
+
+  .statusBadge--warning{
+    background:linear-gradient(180deg, #FFF8E6 0%, #FFEFBE 100%);
+    color:#9A6700;
+    border-color:#F4D37A;
+  }
+
+  .actionCell{
+    display:flex;
+    justify-content:flex-end;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  .mobile-cards{
+    gap:12px;
+  }
+
+  .mcard{
+    border-radius:20px;
+    padding:16px;
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .mcard__top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    margin-bottom:12px;
+  }
+
+  .mcard__docno{
+    font-size:16px;
+    font-weight:800;
+    color:var(--primary);
+    text-decoration:none;
+  }
+
+  .mcard__docno:hover{
+    text-decoration:underline;
+  }
+
+  .mcard__subject{
+    margin-top:6px;
+    color:var(--text);
+    font-weight:700;
+  }
+
+  .mcard__grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .mcard__stat{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px;
+  }
+
+  .mcard__statLabel{
+    font-size:12px;
+    color:var(--text-soft);
+    font-weight:600;
+  }
+
+  .mcard__statValue{
+    margin-top:6px;
+    font-weight:800;
+    color:var(--text);
+    word-break:break-word;
+  }
+
+  .mcard__wide{
+    grid-column:1 / -1;
+  }
+
+  .mcard__actions{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .mcard__actions .btn{
+    width:100%;
+    justify-content:center;
+  }
+
+  .emptyState{
+    border:1px dashed var(--line-strong);
+    border-radius:18px;
+    padding:22px;
+    text-align:center;
+    color:var(--text-soft);
+    background:linear-gradient(180deg, #F9FCFF 0%, #F3F8FF 100%);
+  }
+
+  .mono{
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  .mutedLine{
+    color:var(--text-soft);
+    font-size:12px;
+    margin-top:4px;
+    line-height:1.45;
+  }
+
+  @media (max-width: 920px){
+    .searchForm{
+      grid-template-columns:1fr 1fr;
+    }
+
+    .searchForm .btn{
+      width:100%;
+    }
+  }
+
+  @media (max-width: 820px){
+    .desktop-table{
+      display:none !important;
+    }
+
+    .mobile-cards{
+      display:grid !important;
+    }
+
+    .searchForm{
+      grid-template-columns:1fr;
+    }
+  }
+
+  @media (max-width: 640px){
+    .mcard__grid{
+      grid-template-columns:1fr;
+    }
+
+    .mcard__wide{
+      grid-column:auto;
+    }
+  }
+
+  @media (min-width: 821px){
+    .mobile-cards{
+      display:none !important;
+    }
+  }
+</style>
+
+{% set type_labels = DOC_TITLE if DOC_TITLE is defined else {"QT":"ใบเสนอราคา","BL":"ใบวางบิล/แจ้งหนี้","IV":"ใบกำกับภาษี","RC":"ใบเสร็จรับเงิน"} %}
+
+{% set status_options = {
+  "QT": ["", "ฉบับร่าง", "อนุมัติแล้ว", "ยกเลิก"],
+  "BL": ["", "ฉบับร่าง", "วางบิลแล้ว", "ยกเลิก"],
+  "IV": ["", "ฉบับร่าง", "ออกแล้ว", "ยกเลิก"],
+  "RC": ["", "ฉบับร่าง", "รับชำระแล้ว", "ยกเลิก"]
+} %}
+
+{% set current_status_options = status_options.get(doc_type, ["", "ฉบับร่าง", "อนุมัติแล้ว", "ยกเลิก"]) %}
+
+<div class="docsPage">
+  <div class="docsHero">
+    <div>
+      <h1>เอกสารขาย</h1>
+      <div class="docsHero__sub">เริ่มจากใบเสนอราคา (QT) แล้วติดตาม BL / IV / RC ตามงวดได้จากหน้านี้</div>
     </div>
-    <div style="display:flex; flex-wrap:wrap; gap:8px;">
-      {# status filter #}
-      {% set _st = status or "" %}
-      <a class="btn btn-small {{ 'btn-primary' if _st=='' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, q=q) }}">ทั้งหมด</a>
-      <a class="btn btn-small {{ 'btn-primary' if _st=='DRAFT' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, status='DRAFT', q=q) }}">DRAFT</a>
-      <a class="btn btn-small {{ 'btn-primary' if _st=='APPROVED' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, status='APPROVED', q=q) }}">APPROVED</a>
-      <a class="btn btn-small {{ 'btn-primary' if _st=='VOID' else 'btn-ghost' }}" href="{{ url_for('docs.docs_list', type=doc_type, status='VOID', q=q) }}">VOID</a>
+
+    <div class="docsHero__actions">
+      <a class="btn btn-primary" href="{{ url_for('docs.qt_new') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>สร้างใบเสนอราคา</span>
+      </a>
     </div>
   </div>
-</div>
 
-<div class="card">
-  <form class="search" method="get" action="{{ url_for('docs.docs_list') }}">
-    <input class="input" name="q" placeholder="ค้นหาเลขเอกสาร / ลูกค้า / หัวเรื่อง" value="{{ q }}">
-    <input type="hidden" name="type" value="{{ doc_type }}">
-    <input type="hidden" name="status" value="{{ status }}">
-    <button class="btn btn-small" type="submit">ค้นหา</button>
-    <a class="btn btn-small btn-ghost" href="{{ url_for('docs.docs_list') }}">ล้าง</a>
-  </form>
-
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width:140px;">เลขเอกสาร</th>
-          <th style="width:90px;">ประเภท</th>
-          <th>ลูกค้า</th>
-          <th>หัวเรื่อง</th>
-          <th style="width:120px;">สถานะ</th>
-          <th style="width:120px;" class="right">จัดการ</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for d in docs %}
-        <tr>
-          <td class="mono"><a class="link" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">{{ d.doc_no }}</a></td>
-          <td>{{ d.doc_type }}</td>
-          <td>{{ d.customer_name }}</td>
-          <td>{{ d.subject or '-' }}</td>
-          <td>
-            {% if d.status == 'APPROVED' %}
-              <span class="pill pill-done">APPROVED</span>
-            {% else %}
-              <span class="pill pill-in_progress">DRAFT</span>
-            {% endif %}
-          </td>
-          <td class="right">
-            <a class="btn btn-small" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">ดู</a>
-          </td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="6" class="center muted" style="padding:16px;">ยังไม่มีเอกสาร</td>
-        </tr>
+  <div class="segmentCard">
+    <div class="segmentHead">
+      <div class="segmentBlock">
+        <div class="segmentLabel">ประเภทเอกสาร</div>
+        {% set _types = ["QT","BL","IV","RC"] %}
+        {% for t in _types %}
+          {% set active = (doc_type == t) %}
+          <a
+            class="segmentBtn {{ 'is-active' if active else '' }}"
+            href="{{ url_for('docs.docs_list', type=t, status=status, q=q) }}"
+          >
+            {{ type_labels.get(t,t) }}
+          </a>
         {% endfor %}
-      </tbody>
-    </table>
+      </div>
+
+      <div class="segmentBlock">
+        <div class="segmentLabel">สถานะเอกสาร</div>
+        {% for st in current_status_options %}
+          {% set active = ((status or '') == st) %}
+          <a
+            class="segmentBtn {{ 'is-active' if active else '' }}"
+            href="{{ url_for('docs.docs_list', type=doc_type, status=st if st else None, q=q) }}"
+          >
+            {{ st if st else 'ทั้งหมด' }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="searchCard">
+    <form class="searchForm" method="get" action="{{ url_for('docs.docs_list') }}">
+      <input class="input" name="q" placeholder="ค้นหาเลขเอกสาร / ลูกค้า / หัวเรื่อง / รายละเอียด" value="{{ q }}">
+      <input type="hidden" name="type" value="{{ doc_type }}">
+      <input type="hidden" name="status" value="{{ status }}">
+      <button class="btn btn-small" type="submit">
+        <i class="bi bi-search"></i>
+        <span>ค้นหา</span>
+      </button>
+      <a class="btn btn-small btn-ghost" href="{{ url_for('docs.docs_list', type=doc_type) }}">
+        <i class="bi bi-arrow-counterclockwise"></i>
+        <span>ล้าง</span>
+      </a>
+    </form>
+  </div>
+
+  <div class="tableCard">
+    <div class="tableTop">
+      <div>
+        <div class="section-title">รายการเอกสาร</div>
+        <div class="tableTop__meta">ดูเลขเอกสาร ลูกค้า หัวเรื่อง งวด และสถานะได้จากหน้านี้</div>
+      </div>
+    </div>
+
+    <div class="table-wrap desktop-table">
+      <table class="table">
+        <thead>
+          <tr>
+            <th style="width:150px;">เลขเอกสาร</th>
+            <th style="width:120px;">ประเภท</th>
+            <th style="width:140px;">งวด</th>
+            <th>ลูกค้า</th>
+            <th>หัวเรื่อง / รายละเอียด</th>
+            <th style="width:140px;">สถานะ</th>
+            <th style="width:120px;" class="right">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in docs %}
+          {% set st = d.status or '' %}
+          <tr>
+            <td class="mono">
+              <a class="docNoLink" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">{{ d.doc_no }}</a>
+            </td>
+
+            <td>
+              <span class="docTypeBadge">{{ type_labels.get(d.doc_type, d.doc_type) }}</span>
+            </td>
+
+            <td>
+              {% if d.installment %}
+                <div>งวดที่ {{ d.installment.installment_no }}</div>
+                {% if d.installment.percent %}
+                  <div class="mutedLine">{{ ('%.2f'|format(d.installment.percent or 0)).rstrip('0').rstrip('.') }}%</div>
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+
+            <td>{{ d.customer_name or '-' }}</td>
+
+            <td>
+              <div>{{ d.subject or '-' }}</div>
+              {% if d.description %}
+                <div class="mutedLine">{{ d.description }}</div>
+              {% endif %}
+            </td>
+
+            <td>
+              {% if st in ['อนุมัติแล้ว', 'วางบิลแล้ว', 'ออกแล้ว', 'รับชำระแล้ว'] %}
+                <span class="statusBadge statusBadge--approved">{{ st }}</span>
+              {% elif st in ['ยกเลิก'] %}
+                <span class="statusBadge statusBadge--void">{{ st }}</span>
+              {% elif st in ['เกินกำหนด'] %}
+                <span class="statusBadge statusBadge--warning">{{ st }}</span>
+              {% else %}
+                <span class="statusBadge statusBadge--draft">{{ st or 'ฉบับร่าง' }}</span>
+              {% endif %}
+            </td>
+
+            <td class="right">
+              <div class="actionCell">
+                <a class="btn btn-small" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">
+                  <i class="bi bi-eye"></i>
+                  <span>ดู</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="center" style="padding:22px; color:var(--text-soft);">ยังไม่มีเอกสาร</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mobile-cards">
+      {% for d in docs %}
+      {% set st = d.status or '' %}
+      <div class="mcard">
+        <div class="mcard__top">
+          <div>
+            <a class="mcard__docno mono" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">{{ d.doc_no }}</a>
+            <div class="mcard__subject">{{ d.subject or '-' }}</div>
+          </div>
+
+          <div>
+            {% if st in ['อนุมัติแล้ว', 'วางบิลแล้ว', 'ออกแล้ว', 'รับชำระแล้ว'] %}
+              <span class="statusBadge statusBadge--approved">{{ st }}</span>
+            {% elif st in ['ยกเลิก'] %}
+              <span class="statusBadge statusBadge--void">{{ st }}</span>
+            {% elif st in ['เกินกำหนด'] %}
+              <span class="statusBadge statusBadge--warning">{{ st }}</span>
+            {% else %}
+              <span class="statusBadge statusBadge--draft">{{ st or 'ฉบับร่าง' }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="mcard__grid">
+          <div class="mcard__stat">
+            <div class="mcard__statLabel">ประเภท</div>
+            <div class="mcard__statValue">{{ type_labels.get(d.doc_type, d.doc_type) }}</div>
+          </div>
+
+          <div class="mcard__stat">
+            <div class="mcard__statLabel">ลูกค้า</div>
+            <div class="mcard__statValue">{{ d.customer_name or '-' }}</div>
+          </div>
+
+          <div class="mcard__stat">
+            <div class="mcard__statLabel">งวด</div>
+            <div class="mcard__statValue">
+              {% if d.installment %}
+                งวดที่ {{ d.installment.installment_no }}
+                {% if d.installment.percent %}
+                  <div class="mutedLine">{{ ('%.2f'|format(d.installment.percent or 0)).rstrip('0').rstrip('.') }}%</div>
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="mcard__stat mcard__wide">
+            <div class="mcard__statLabel">รายละเอียด</div>
+            <div class="mcard__statValue">{{ d.description or d.subject or '-' }}</div>
+          </div>
+        </div>
+
+        <div class="mcard__actions">
+          <a class="btn btn-small" href="{{ url_for('docs.doc_view', doc_id=d.id) }}">
+            <i class="bi bi-eye"></i>
+            <span>ดูเอกสาร</span>
+          </a>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if not docs %}
+        <div class="emptyState">
+          ยังไม่มีเอกสาร
+        </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

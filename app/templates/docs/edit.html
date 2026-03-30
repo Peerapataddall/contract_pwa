@@ -2,390 +2,867 @@
 {% set title = "แก้ไขใบเสนอราคา" %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>แก้ไขใบเสนอราคา (QT)</h1>
-    <div class="muted">{{ doc.doc_no }} • สถานะ {{ doc.status }}</div>
-  </div>
-  <div class="actions">
-    <a class="btn btn-ghost" href="{{ url_for('docs.doc_view', doc_id=doc.id) }}">กลับ</a>
-  </div>
-</div>
-
-<div class="card">
-  {# ✅ ต้องมี enctype เพื่ออัปโหลด BOQ ได้ #}
-  <form method="post" class="form" enctype="multipart/form-data" action="{{ url_for('docs.doc_edit_save', doc_id=doc.id) }}">
-    <div class="grid grid-2">
-      <label class="field">
-        <span>เลขเอกสาร</span>
-        <input value="{{ doc.doc_no }}" class="input" disabled>
-      </label>
-
-      <label class="field">
-        <span>วันที่ออกเอกสาร</span>
-        <input id="issue_date" value="{{ doc.issue_date or '' }}" class="input" disabled>
-      </label>
-
-      <input type="hidden" name="customer_id" id="customer_id" value="{{ doc.customer_id or '' }}">
-
-      <label class="field" style="grid-column:1/-1; position:relative;">
-        <span>ค้นหาลูกค้า (พิมพ์ชื่อแล้วเลือก)</span>
-        <input id="customer_search" class="input" placeholder="พิมพ์ชื่อ เช่น บริษัท... / คุณ..." autocomplete="off">
-        <div id="customer_suggest" class="suggest" style="display:none;"></div>
-        <div class="muted" style="margin-top:6px;">* เลือกแล้วระบบจะเติมข้อมูลลูกค้าให้ (แก้ไขเองได้)</div>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>ชื่อลูกค้า *</span>
-        <input name="customer_name" id="customer_name" class="input" required value="{{ doc.customer_name or '' }}">
-      </label>
-
-      <label class="field">
-        <span>เลขผู้เสียภาษีลูกค้า</span>
-        <input name="customer_tax_id" id="customer_tax_id" class="input" value="{{ doc.customer_tax_id or '' }}">
-      </label>
-
-      <label class="field">
-        <span>โทรศัพท์ลูกค้า</span>
-        <input name="customer_phone" id="customer_phone" class="input" value="{{ doc.customer_phone or '' }}">
-      </label>
-
-      <label class="field">
-        <span>อีเมลลูกค้า</span>
-        <input name="customer_email" id="customer_email" class="input" value="{{ doc.customer_email or '' }}">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>ที่อยู่ลูกค้า</span>
-        <textarea name="customer_address" id="customer_address" rows="3">{{ doc.customer_address or '' }}</textarea>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>หัวเรื่อง</span>
-        <input name="subject" class="input" placeholder="เช่น งานติดตั้ง / งานรีโนเวท / งานระบบไฟฟ้า" value="{{ doc.subject or '' }}">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>รายละเอียดงาน</span>
-        <textarea name="description" rows="3">{{ doc.description or '' }}</textarea>
-      </label>
-    </div>
-
-    {# ✅ แนบไฟล์ BOQ (ไม่บังคับ) #}
-    <div class="mt-12">
-      <div class="section-head">
-        <div class="section-title">แนบไฟล์ BOQ (ไม่บังคับ)</div>
-        <div class="muted">อัปโหลดใหม่เพื่อแทนไฟล์เดิมได้</div>
-      </div>
-
-      <div class="grid grid-2">
-        <label class="field">
-          <span>BOQ (Excel)</span>
-          <input class="input" type="file" name="boq_excel" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-          {% if doc.boq_excel_path %}
-            <div class="muted" style="margin-top:6px;">ไฟล์เดิม: {{ doc.boq_excel_path }}</div>
-          {% endif %}
-        </label>
-
-        <label class="field">
-          <span>BOQ (PDF)</span>
-          <input class="input" type="file" name="boq_pdf" accept=".pdf,application/pdf">
-          {% if doc.boq_pdf_path %}
-            <div class="muted" style="margin-top:6px;">ไฟล์เดิม: {{ doc.boq_pdf_path }}</div>
-          {% endif %}
-        </label>
-      </div>
-    </div>
-
-    <div class="mt-12">
-      <div class="section-head">
-        <div class="section-title">รายการ</div>
-        <div class="muted">แก้ไขได้เหมือนหน้าสร้าง</div>
-      </div>
-
-      <div class="table-wrap">
-        <table class="table" id="itemsTable">
-          <thead>
-            <tr>
-              <th>รายละเอียด</th>
-              <th style="width:120px;" class="right">จำนวน</th>
-              <th style="width:160px;" class="right">ราคาต่อหน่วย</th>
-              <th style="width:140px;" class="right">ส่วนลด</th>
-              <th style="width:90px;" class="center">ลบ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for it in items %}
-            <tr>
-              <td><input class="input" name="item_description" value="{{ it.description }}"></td>
-              <td><input class="input right" name="item_qty" value="{{ it.qty }}"></td>
-              <td><input class="input right" name="item_unit_price" value="{{ it.unit_price }}"></td>
-              <td><input class="input right" name="item_discount_amount" value="{{ it.discount_amount }}"></td>
-              <td class="center"><button class="row-btn" type="button" onclick="removeRow(this)">✖</button></td>
-            </tr>
-            {% endfor %}
-
-            {# แถวเพิ่มใหม่ 1 แถว #}
-            <tr>
-              <td><input class="input" name="item_description" value=""></td>
-              <td><input class="input right" name="item_qty" value="1"></td>
-              <td><input class="input right" name="item_unit_price" value="0"></td>
-              <td><input class="input right" name="item_discount_amount" value="0"></td>
-              <td class="center"><button class="row-btn" type="button" onclick="removeRow(this)">✖</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="actions mt-12">
-        <button class="btn btn-small" type="button" onclick="addRow()">+ เพิ่มรายการ</button>
-      </div>
-    </div>
-
-    <div class="mt-12 grid grid-3">
-      <label class="field">
-        <span>ส่วนลดท้ายบิล</span>
-        <input name="discount_amount" class="input right" value="{{ doc.discount_amount or 0 }}">
-      </label>
-      <label class="field">
-        <span>VAT (%)</span>
-        <input name="vat_rate" class="input right" value="{{ doc.vat_rate or 7 }}">
-      </label>
-      <label class="field">
-        <span>หัก ณ ที่จ่าย (%)</span>
-        <input name="wht_rate" class="input right" value="{{ doc.wht_rate or 0 }}">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>เงื่อนไขเงินประกัน</span>
-        <textarea name="deposit_note" rows="2">{{ doc.deposit_note or '' }}</textarea>
-      </label>
-
-      <label class="field">
-        <span>ระยะเวลารับประกัน (เดือน)</span>
-        <input name="warranty_months" id="warranty_months" class="input" placeholder="เช่น 12" value="{{ doc.warranty_months or '' }}">
-        <div class="muted" style="margin-top:6px;">* เปลี่ยนได้เอง หรือเลือก “วันที่สิ้นสุดรับประกัน” ด้านขวา</div>
-      </label>
-
-      <label class="field">
-        <span>วันที่สิ้นสุดรับประกัน</span>
-
-        {# ✅ สำคัญ: ต้องมี name= เพื่อให้ส่งค่าไป backend #}
-        <input
-          type="date"
-          id="warranty_end_date"
-          name="warranty_end_date"
-          class="input"
-          value="{{ doc.warranty_end_date.strftime('%Y-%m-%d') if doc.warranty_end_date else '' }}"
-        >
-
-        {# ✅ กันบางกรณี JS/Browser เคลียร์ค่า ให้ส่งซ้ำอีกตัว #}
-        <input
-          type="hidden"
-          id="warranty_end_date_hidden"
-          name="warranty_end_date_hidden"
-          value="{{ doc.warranty_end_date.strftime('%Y-%m-%d') if doc.warranty_end_date else '' }}"
-        >
-
-        <div class="muted" style="margin-top:6px;">* เลือกวันที่แล้วระบบคำนวณจำนวน “เดือน” ให้</div>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>เงื่อนไขการชำระเงิน</span>
-        <textarea name="payment_terms" rows="2">{{ doc.payment_terms or '' }}</textarea>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>หมายเหตุ</span>
-        <textarea name="note" rows="2">{{ doc.note or '' }}</textarea>
-      </label>
-    </div>
-
-    <div class="actions mt-12">
-      <button class="btn btn-primary" type="submit">บันทึกการแก้ไข</button>
-      <a class="btn btn-ghost" href="{{ url_for('docs.doc_view', doc_id=doc.id) }}">ยกเลิก</a>
-    </div>
-  </form>
-</div>
-
 <style>
+  .docFormPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+
+  .formHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .formHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
+
+  .formHero__actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .sectionCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .sectionHeader{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+
+  .sectionHeader__sub{
+    margin-top:4px;
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .fieldGrid{
+    display:grid;
+    gap:14px;
+  }
+
+  .fieldGrid-2{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .fieldGrid-3{
+    grid-template-columns:repeat(3, 1fr);
+  }
+
+  .fieldGrid-4{
+    grid-template-columns:1.1fr .8fr .9fr 1.2fr;
+  }
+
+  .fullCol{
+    grid-column:1 / -1;
+  }
+
+  .tablePanel{
+    border:1px solid var(--line);
+    border-radius:18px;
+    overflow:hidden;
+    background:#FFFFFF;
+  }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .table{
+    min-width:980px;
+  }
+
+  .table thead th{
+    background:#F5FAFF;
+  }
+
+  .row-btn{
+    min-height:36px;
+    padding:8px 10px;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:#FFFFFF;
+    cursor:pointer;
+  }
+
+  .installmentRow{
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:14px;
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .installmentToolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .installmentIndex{
+    font-size:13px;
+    font-weight:800;
+    color:var(--text);
+  }
+
   .suggest{
     position:absolute;
-    left:0; right:0;
-    top: calc(100% + 6px);
-    background: rgba(20, 26, 38, .98);
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 14px;
-    box-shadow: 0 18px 50px rgba(0,0,0,.25);
-    overflow: hidden;
-    z-index: 50;
+    left:0;
+    right:0;
+    top:calc(100% + 6px);
+    background:#FFFFFF;
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow-md);
+    overflow:hidden;
+    z-index:50;
   }
+
   .suggest button{
     display:block;
     width:100%;
     text-align:left;
-    padding:10px 12px;
-    background: transparent;
+    padding:12px 14px;
+    background:transparent;
     border:0;
-    color: #e6eefc;
+    color:var(--text);
     cursor:pointer;
   }
-  .suggest button:hover{ background: rgba(255,255,255,.06); }
-  .suggest .sub{ font-size:12px; opacity:.8; margin-top:2px; }
+
+  .suggest button:hover{
+    background:#F5FAFF;
+  }
+
+  .suggest .sub{
+    font-size:12px;
+    margin-top:3px;
+    color:var(--text-soft);
+  }
+
+  .lockNote{
+    margin-top:8px;
+    color:#9A6700;
+    font-size:12px;
+  }
+
+  @media (max-width: 980px){
+    .fieldGrid-3{
+      grid-template-columns:1fr;
+    }
+
+    .fieldGrid-4{
+      grid-template-columns:1fr;
+    }
+  }
+
+  @media (max-width: 820px){
+    .fieldGrid-2{
+      grid-template-columns:1fr;
+    }
+  }
 </style>
 
+{% set has_locked_installment = false %}
+{% for row in installments %}
+  {% if row.status in ['วางบิลแล้ว', 'ออกใบกำกับภาษีแล้ว', 'รับชำระแล้ว', 'เกินกำหนด', 'ยกเลิก'] %}
+    {% set has_locked_installment = true %}
+  {% endif %}
+{% endfor %}
+
+<div class="docFormPage">
+  <div class="formHero">
+    <div>
+      <h1>แก้ไขใบเสนอราคา (QT)</h1>
+      <div class="formHero__sub">{{ doc.doc_no }} • สถานะ {{ doc.status }}</div>
+    </div>
+
+    <div class="formHero__actions">
+      <a class="btn btn-ghost" href="{{ url_for('docs.doc_view', doc_id=doc.id) }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>กลับ</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="sectionCard">
+    <form method="post" class="form" enctype="multipart/form-data" action="{{ url_for('docs.doc_edit_save', doc_id=doc.id) }}">
+      <div class="fieldGrid fieldGrid-2">
+        <label class="field">
+          <span>เลขเอกสาร</span>
+          <input value="{{ doc.doc_no }}" class="input" disabled>
+        </label>
+
+        <label class="field">
+          <span>วันที่ออกเอกสาร</span>
+          <input
+            id="issue_date"
+            value="{{ doc.issue_date.strftime('%Y-%m-%d') if doc.issue_date else '' }}"
+            class="input"
+            disabled
+          >
+        </label>
+
+        <label class="field">
+          <span>กำหนดชำระ (รวม)</span>
+          <input
+            type="date"
+            name="due_date"
+            class="input"
+            value="{{ doc.due_date.strftime('%Y-%m-%d') if doc.due_date else '' }}"
+          >
+        </label>
+
+        <div></div>
+
+        <input type="hidden" name="customer_id" id="customer_id" value="{{ doc.customer_id or '' }}">
+
+        <label class="field fullCol" style="position:relative;">
+          <span>ค้นหาลูกค้า (พิมพ์ชื่อแล้วเลือก)</span>
+          <input
+            id="customer_search"
+            class="input"
+            placeholder="พิมพ์ชื่อ เช่น บริษัท... / คุณ..."
+            autocomplete="off"
+            value="{{ doc.customer_name or '' }}"
+          >
+          <div id="customer_suggest" class="suggest" style="display:none;"></div>
+          <div class="muted" style="margin-top:6px;">* เลือกแล้วระบบจะเติมข้อมูลลูกค้าให้ (แก้ไขเองได้)</div>
+        </label>
+
+        <label class="field fullCol">
+          <span>ชื่อลูกค้า *</span>
+          <input name="customer_name" id="customer_name" class="input" required value="{{ doc.customer_name or '' }}">
+        </label>
+
+        <label class="field">
+          <span>เลขผู้เสียภาษีลูกค้า</span>
+          <input name="customer_tax_id" id="customer_tax_id" class="input" value="{{ doc.customer_tax_id or '' }}">
+        </label>
+
+        <label class="field">
+          <span>โทรศัพท์ลูกค้า</span>
+          <input name="customer_phone" id="customer_phone" class="input" value="{{ doc.customer_phone or '' }}">
+        </label>
+
+        <label class="field">
+          <span>อีเมลลูกค้า</span>
+          <input name="customer_email" id="customer_email" class="input" value="{{ doc.customer_email or '' }}">
+        </label>
+
+        <label class="field fullCol">
+          <span>ที่อยู่ลูกค้า</span>
+          <textarea name="customer_address" id="customer_address" rows="3" class="input">{{ doc.customer_address or '' }}</textarea>
+        </label>
+
+        <label class="field fullCol">
+          <span>หัวเรื่อง</span>
+          <input
+            name="subject"
+            class="input"
+            placeholder="เช่น งานติดตั้ง / งานรีโนเวท / งานระบบไฟฟ้า"
+            value="{{ doc.subject or '' }}"
+          >
+        </label>
+
+        <label class="field fullCol">
+          <span>รายละเอียดงาน</span>
+          <textarea name="description" rows="3" class="input">{{ doc.description or '' }}</textarea>
+        </label>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">แนบไฟล์ BOQ (ไม่บังคับ)</div>
+            <div class="sectionHeader__sub">อัปโหลดใหม่เพื่อแทนไฟล์เดิมได้</div>
+          </div>
+        </div>
+
+        <div class="fieldGrid fieldGrid-2">
+          <label class="field">
+            <span>BOQ (Excel)</span>
+            <input
+              class="input"
+              type="file"
+              name="boq_excel"
+              accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            >
+            {% if doc.boq_excel_path %}
+              <div class="muted" style="margin-top:6px;">ไฟล์เดิม: {{ doc.boq_excel_path }}</div>
+            {% endif %}
+          </label>
+
+          <label class="field">
+            <span>BOQ (PDF)</span>
+            <input
+              class="input"
+              type="file"
+              name="boq_pdf"
+              accept=".pdf,application/pdf"
+            >
+            {% if doc.boq_pdf_path %}
+              <div class="muted" style="margin-top:6px;">ไฟล์เดิม: {{ doc.boq_pdf_path }}</div>
+            {% endif %}
+          </label>
+        </div>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">รายการ</div>
+            <div class="sectionHeader__sub">แก้ไขได้เหมือนหน้าสร้าง</div>
+          </div>
+
+          <button class="btn btn-small" type="button" onclick="addRow()">
+            <i class="bi bi-plus-lg"></i>
+            <span>เพิ่มรายการ</span>
+          </button>
+        </div>
+
+        <div class="tablePanel">
+          <div class="table-wrap">
+            <table class="table" id="itemsTable">
+              <thead>
+                <tr>
+                  <th>รายละเอียด</th>
+                  <th style="width:120px;" class="right">จำนวน</th>
+                  <th style="width:160px;" class="right">ราคาต่อหน่วย</th>
+                  <th style="width:140px;" class="right">ส่วนลด</th>
+                  <th style="width:90px;" class="center">ลบ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in items %}
+                <tr>
+                  <td>
+                    <input class="input" name="item_description" value="{{ it.description or '' }}">
+                  </td>
+                  <td>
+                    <input class="input right" type="number" step="0.01" min="0" name="item_qty" value="{{ it.qty or 1 }}">
+                  </td>
+                  <td>
+                    <input class="input right" type="number" step="0.01" min="0" name="item_unit_price" value="{{ it.unit_price or 0 }}">
+                  </td>
+                  <td>
+                    <input class="input right" type="number" step="0.01" min="0" name="item_discount_amount" value="{{ it.discount_amount or 0 }}">
+                  </td>
+                  <td class="center">
+                    <button class="row-btn" type="button" onclick="removeRow(this)">✖</button>
+                  </td>
+                </tr>
+                {% endfor %}
+
+                {% if not items %}
+                <tr>
+                  <td><input class="input" name="item_description" value=""></td>
+                  <td><input class="input right" type="number" step="0.01" min="0" name="item_qty" value="1"></td>
+                  <td><input class="input right" type="number" step="0.01" min="0" name="item_unit_price" value="0"></td>
+                  <td><input class="input right" type="number" step="0.01" min="0" name="item_discount_amount" value="0"></td>
+                  <td class="center"><button class="row-btn" type="button" onclick="removeRow(this)">✖</button></td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">เงื่อนไขราคาและข้อมูลเพิ่มเติม</div>
+            <div class="sectionHeader__sub">กำหนดส่วนลด VAT หัก ณ ที่จ่าย และข้อมูลประกอบเอกสาร</div>
+          </div>
+        </div>
+
+        <div class="fieldGrid fieldGrid-3">
+          <label class="field">
+            <span>ส่วนลดท้ายบิล</span>
+            <input name="discount_amount" class="input right" type="number" step="0.01" min="0" value="{{ doc.discount_amount or 0 }}">
+          </label>
+
+          <label class="field">
+            <span>VAT (%)</span>
+            <input name="vat_rate" class="input right" type="number" step="0.01" min="0" value="{{ doc.vat_rate or 7 }}">
+          </label>
+
+          <label class="field">
+            <span>หัก ณ ที่จ่าย (%)</span>
+            <input name="wht_rate" class="input right" type="number" step="0.01" min="0" value="{{ doc.wht_rate or 0 }}">
+          </label>
+
+          <label class="field fullCol">
+            <span>เงื่อนไขเงินประกัน</span>
+            <textarea name="deposit_note" rows="2" class="input">{{ doc.deposit_note or '' }}</textarea>
+          </label>
+
+          <label class="field">
+            <span>ระยะเวลารับประกัน (เดือน)</span>
+            <input
+              name="warranty_months"
+              id="warranty_months"
+              class="input"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="เช่น 12"
+              value="{{ doc.warranty_months or '' }}"
+            >
+            <div class="muted" style="margin-top:6px;">* เปลี่ยนได้เอง หรือเลือก “วันที่สิ้นสุดรับประกัน” ด้านขวา</div>
+          </label>
+
+          <label class="field">
+            <span>วันที่สิ้นสุดรับประกัน</span>
+            <input
+              type="date"
+              id="warranty_end_date"
+              name="warranty_end_date"
+              class="input"
+              value="{{ doc.warranty_end_date.strftime('%Y-%m-%d') if doc.warranty_end_date else '' }}"
+            >
+
+            <input
+              type="hidden"
+              id="warranty_end_date_hidden"
+              name="warranty_end_date_hidden"
+              value="{{ doc.warranty_end_date.strftime('%Y-%m-%d') if doc.warranty_end_date else '' }}"
+            >
+
+            <div class="muted" style="margin-top:6px;">* เลือกวันที่แล้วระบบคำนวณจำนวน “เดือน” ให้</div>
+          </label>
+
+          <label class="field fullCol">
+            <span>เงื่อนไขการชำระเงิน</span>
+            <textarea name="payment_terms" rows="2" class="input">{{ doc.payment_terms or '' }}</textarea>
+          </label>
+
+          <label class="field fullCol">
+            <span>หมายเหตุ</span>
+            <textarea name="note" rows="2" class="input">{{ doc.note or '' }}</textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">แผนงวดชำระ</div>
+            <div class="sectionHeader__sub">ผลรวมเปอร์เซ็นต์ต้องเท่ากับ 100%</div>
+          </div>
+
+          {% if has_locked_installment %}
+            <span class="btn btn-ghost" style="pointer-events:none; opacity:.7;">งวดถูกล็อกแล้ว</span>
+          {% else %}
+            <button class="btn btn-small" type="button" onclick="addInstallmentRow()">
+              <i class="bi bi-plus-lg"></i>
+              <span>เพิ่มงวด</span>
+            </button>
+          {% endif %}
+        </div>
+
+        {% if has_locked_installment %}
+          <div class="lockNote">มีงวดที่ถูกนำไปสร้าง BL / IV / RC แล้ว จึงไม่สามารถแก้ไขแผนงวดได้</div>
+        {% endif %}
+
+        <div id="installmentsWrap">
+          {% for row in installments %}
+          <div class="installmentRow">
+            <div class="installmentToolbar">
+              <div class="installmentIndex">
+                งวดที่ <span class="js-installment-no">{{ loop.index }}</span>
+                {% if row.status %}
+                  • สถานะ {{ row.status }}
+                {% endif %}
+              </div>
+
+              {% if has_locked_installment %}
+                <button class="row-btn" type="button" disabled>ลบงวด</button>
+              {% else %}
+                <button class="row-btn" type="button" onclick="removeInstallmentRow(this)">ลบงวด</button>
+              {% endif %}
+            </div>
+
+            <div class="fieldGrid fieldGrid-4">
+              <label class="field">
+                <span>ชื่องวด</span>
+                <input
+                  class="input"
+                  name="installment_title"
+                  value="{{ row.title or ('งวดที่ ' ~ loop.index) }}"
+                  {% if has_locked_installment %}disabled{% endif %}
+                >
+                {% if has_locked_installment %}
+                  <input type="hidden" name="installment_title" value="{{ row.title or ('งวดที่ ' ~ loop.index) }}">
+                {% endif %}
+              </label>
+
+              <label class="field">
+                <span>เปอร์เซ็นต์ (%)</span>
+                <input
+                  class="input right js-installment-percent"
+                  name="installment_percent"
+                  value="{{ row.percent or '' }}"
+                  {% if has_locked_installment %}disabled{% endif %}
+                >
+                {% if has_locked_installment %}
+                  <input type="hidden" name="installment_percent" value="{{ row.percent or '' }}">
+                {% endif %}
+              </label>
+
+              <label class="field">
+                <span>ครบกำหนด</span>
+                <input
+                  type="date"
+                  class="input"
+                  name="installment_due_date"
+                  value="{{ row.due_date or '' }}"
+                  {% if has_locked_installment %}disabled{% endif %}
+                >
+                {% if has_locked_installment %}
+                  <input type="hidden" name="installment_due_date" value="{{ row.due_date or '' }}">
+                {% endif %}
+              </label>
+
+              <label class="field">
+                <span>หมายเหตุ</span>
+                <input
+                  class="input"
+                  name="installment_remark"
+                  value="{{ row.remark or '' }}"
+                  {% if has_locked_installment %}disabled{% endif %}
+                >
+                {% if has_locked_installment %}
+                  <input type="hidden" name="installment_remark" value="{{ row.remark or '' }}">
+                {% endif %}
+              </label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="muted" style="margin-top:8px;">
+          ผลรวมเปอร์เซ็นต์ทั้งหมด: <b id="installmentPercentSum">0.00%</b>
+        </div>
+      </div>
+
+      <div class="actions mt-12" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" type="submit">บันทึกการแก้ไข</button>
+        <a class="btn btn-ghost" href="{{ url_for('docs.doc_view', doc_id=doc.id) }}">ยกเลิก</a>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
-function addRow(){
+function addRow() {
   const tbody = document.querySelector('#itemsTable tbody');
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><input class="input" name="item_description" value=""></td>
-    <td><input class="input right" name="item_qty" value="1"></td>
-    <td><input class="input right" name="item_unit_price" value="0"></td>
-    <td><input class="input right" name="item_discount_amount" value="0"></td>
+    <td><input class="input right" type="number" step="0.01" min="0" name="item_qty" value="1"></td>
+    <td><input class="input right" type="number" step="0.01" min="0" name="item_unit_price" value="0"></td>
+    <td><input class="input right" type="number" step="0.01" min="0" name="item_discount_amount" value="0"></td>
     <td class="center"><button class="row-btn" type="button" onclick="removeRow(this)">✖</button></td>
   `;
   tbody.appendChild(tr);
 }
 
-function removeRow(btn){
+function removeRow(btn) {
   const tr = btn.closest('tr');
-  if(!tr) return;
+  if (!tr) return;
   const tbody = tr.closest('tbody');
   tr.remove();
-  // กันตารางว่างเกินไป
-  if(tbody && tbody.querySelectorAll('tr').length === 0){
+
+  if (tbody && tbody.querySelectorAll('tr').length === 0) {
     addRow();
   }
 }
 
 /* ---------------------------
-   Customer search (เหมือนหน้าสร้าง)
+   Installment rows
+--------------------------- */
+const HAS_LOCKED_INSTALLMENT = {{ 'true' if has_locked_installment else 'false' }};
+
+function renumberInstallments(){
+  const rows = document.querySelectorAll('#installmentsWrap .installmentRow');
+  rows.forEach((row, index) => {
+    const no = index + 1;
+    const label = row.querySelector('.js-installment-no');
+    if (label) label.textContent = no;
+
+    const titleInput = row.querySelector('input[name="installment_title"]');
+    if (titleInput && !titleInput.dataset.touched && !titleInput.disabled) {
+      titleInput.value = `งวดที่ ${no}`;
+    }
+  });
+}
+
+function recalcInstallmentPercent(){
+  const inputs = document.querySelectorAll('.js-installment-percent');
+  let sum = 0;
+  inputs.forEach(inp => {
+    const v = parseFloat((inp.value || '0').toString().replace(/,/g,'')) || 0;
+    sum += v;
+  });
+  const box = document.getElementById('installmentPercentSum');
+  if (box) {
+    box.textContent = `${sum.toFixed(2)}%`;
+    box.style.color = Math.abs(sum - 100) < 0.0001 ? 'var(--success)' : 'var(--danger, #B42318)';
+  }
+}
+
+function bindInstallmentRow(row){
+  const titleInput = row.querySelector('input[name="installment_title"]');
+  if (titleInput && !titleInput.disabled) {
+    titleInput.addEventListener('input', () => {
+      titleInput.dataset.touched = titleInput.value.trim() ? '1' : '';
+    });
+  }
+
+  const pct = row.querySelector('.js-installment-percent');
+  if (pct && !pct.disabled) {
+    pct.addEventListener('input', recalcInstallmentPercent);
+  }
+}
+
+function addInstallmentRow(){
+  if (HAS_LOCKED_INSTALLMENT) return;
+
+  const wrap = document.getElementById('installmentsWrap');
+  const div = document.createElement('div');
+  div.className = 'installmentRow';
+  div.innerHTML = `
+    <div class="installmentToolbar">
+      <div class="installmentIndex">งวดที่ <span class="js-installment-no">1</span></div>
+      <button class="row-btn" type="button" onclick="removeInstallmentRow(this)">ลบงวด</button>
+    </div>
+
+    <div class="fieldGrid fieldGrid-4">
+      <label class="field">
+        <span>ชื่องวด</span>
+        <input class="input" name="installment_title" value="">
+      </label>
+
+      <label class="field">
+        <span>เปอร์เซ็นต์ (%)</span>
+        <input class="input right js-installment-percent" name="installment_percent" value="0">
+      </label>
+
+      <label class="field">
+        <span>ครบกำหนด</span>
+        <input type="date" class="input" name="installment_due_date" value="">
+      </label>
+
+      <label class="field">
+        <span>หมายเหตุ</span>
+        <input class="input" name="installment_remark" value="">
+      </label>
+    </div>
+  `;
+  wrap.appendChild(div);
+  bindInstallmentRow(div);
+  renumberInstallments();
+  recalcInstallmentPercent();
+}
+
+function removeInstallmentRow(btn){
+  if (HAS_LOCKED_INSTALLMENT) return;
+
+  const row = btn.closest('.installmentRow');
+  if (row) row.remove();
+
+  const rows = document.querySelectorAll('#installmentsWrap .installmentRow');
+  if (!rows.length) {
+    addInstallmentRow();
+    return;
+  }
+
+  renumberInstallments();
+  recalcInstallmentPercent();
+}
+
+/* ---------------------------
+   Customer search
 --------------------------- */
 const $q = document.getElementById('customer_search');
 const $box = document.getElementById('customer_suggest');
 
-function hideSuggest(){ $box.style.display = 'none'; $box.innerHTML = ''; }
+function hideSuggest() {
+  $box.style.display = 'none';
+  $box.innerHTML = '';
+}
 
-async function searchCustomers(q){
+async function searchCustomers(q) {
   const res = await fetch(`/api/customers/search?q=${encodeURIComponent(q)}&limit=10`);
-  if(!res.ok) return [];
+  if (!res.ok) return [];
   return await res.json();
 }
 
-function pickCustomer(c){
+function pickCustomer(c) {
   document.getElementById('customer_id').value = c.id || '';
   document.getElementById('customer_name').value = c.name || '';
   document.getElementById('customer_tax_id').value = c.tax_id || '';
   document.getElementById('customer_phone').value = c.phone || '';
   document.getElementById('customer_email').value = c.email || '';
   document.getElementById('customer_address').value = c.address || '';
+  document.getElementById('customer_search').value = c.name || '';
   hideSuggest();
 }
 
 let tmr = null;
 $q.addEventListener('input', () => {
   const q = ($q.value || '').trim();
-  if(tmr) clearTimeout(tmr);
-  if(q.length < 2){ hideSuggest(); return; }
+
+  const currentName = (document.getElementById('customer_name').value || '').trim();
+  if (q !== currentName) {
+    document.getElementById('customer_id').value = '';
+  }
+
+  if (tmr) clearTimeout(tmr);
+  if (q.length < 2) {
+    hideSuggest();
+    return;
+  }
+
   tmr = setTimeout(async () => {
     const items = await searchCustomers(q);
-    if(!items.length){ hideSuggest(); return; }
+    if (!items.length) {
+      hideSuggest();
+      return;
+    }
+
     $box.innerHTML = items.map(c => `
       <button type="button" data-id="${c.id}">
         <div><b>${c.name || ''}</b></div>
-        <div class="sub">${c.tax_id ? 'Tax: ' + c.tax_id : ''} ${c.phone ? ' • ' + c.phone : ''}</div>
+        <div class="sub">${c.tax_id ? 'Tax: ' + c.tax_id : ''}${c.phone ? ' • ' + c.phone : ''}</div>
       </button>
     `).join('');
+
     $box.style.display = 'block';
+
     Array.from($box.querySelectorAll('button')).forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         const c = items.find(x => String(x.id) === String(id));
-        if(c) pickCustomer(c);
+        if (c) pickCustomer(c);
       });
     });
   }, 250);
 });
 
 document.addEventListener('click', (e) => {
-  if(!$box.contains(e.target) && e.target !== $q) hideSuggest();
+  if (!$box.contains(e.target) && e.target !== $q) {
+    hideSuggest();
+  }
 });
 
 /* ---------------------------
    Warranty end date -> compute months
-   (คำนวณคร่าว ๆ แบบเดือน: (Y*12+M) diff, ถ้าวันปลาย < วันเริ่มให้ -1)
 --------------------------- */
-function ym(d){ return d.getFullYear()*12 + d.getMonth(); }
+function ym(d) {
+  return d.getFullYear() * 12 + d.getMonth();
+}
 
 const $wEnd = document.getElementById('warranty_end_date');
 const $wEndHidden = document.getElementById('warranty_end_date_hidden');
 const $wMonths = document.getElementById('warranty_months');
 
-function syncWarrantyHidden(){
-  if($wEndHidden){
+function syncWarrantyHidden() {
+  if ($wEndHidden) {
     $wEndHidden.value = ($wEnd && $wEnd.value) ? $wEnd.value : '';
   }
 }
 
-function considerDefaultWarrantyEnd(){
-  // ถ้า DB มีค่าอยู่แล้ว (value ไม่ว่าง) ไม่ต้องคำนวณทับ
-  if($wEnd && ($wEnd.value || '').trim()){
+function considerDefaultWarrantyEnd() {
+  if ($wEnd && ($wEnd.value || '').trim()) {
     syncWarrantyHidden();
     return;
   }
 
-  const issueTxt = "{{ (doc.issue_date or '') }}";
-  if(!issueTxt) return;
+  const issueTxt = "{{ doc.issue_date.strftime('%Y-%m-%d') if doc.issue_date else '' }}";
+  if (!issueTxt) return;
 
-  const monthsTxt = "{{ (doc.warranty_months or '') }}";
+  const monthsTxt = "{{ doc.warranty_months or '' }}";
   const m = parseInt(monthsTxt || "0", 10);
-  if(!m || m <= 0) return;
+  if (!m || m <= 0) return;
 
   const issue = new Date(issueTxt + "T00:00:00");
   const end = new Date(issue.getTime());
   end.setMonth(end.getMonth() + m);
 
-  // format yyyy-mm-dd
   const yyyy = end.getFullYear();
-  const mm = String(end.getMonth()+1).padStart(2,'0');
-  const dd = String(end.getDate()).padStart(2,'0');
-  if($wEnd) $wEnd.value = `${yyyy}-${mm}-${dd}`;
+  const mm = String(end.getMonth() + 1).padStart(2, '0');
+  const dd = String(end.getDate()).padStart(2, '0');
+
+  if ($wEnd) $wEnd.value = `${yyyy}-${mm}-${dd}`;
   syncWarrantyHidden();
 }
 
 considerDefaultWarrantyEnd();
 
-if($wEnd){
+if ($wEnd) {
   $wEnd.addEventListener('change', () => {
     syncWarrantyHidden();
 
-    const issueTxt = "{{ (doc.issue_date or '') }}";
-    if(!issueTxt) return;
+    const issueTxt = "{{ doc.issue_date.strftime('%Y-%m-%d') if doc.issue_date else '' }}";
+    if (!issueTxt) return;
 
     const endTxt = $wEnd.value;
-    if(!endTxt) return;
+    if (!endTxt) return;
 
     const issue = new Date(issueTxt + "T00:00:00");
     const end = new Date(endTxt + "T00:00:00");
 
     let months = ym(end) - ym(issue);
-    if(end.getDate() < issue.getDate()) months -= 1;
-    if(months < 0) months = 0;
+    if (end.getDate() < issue.getDate()) months -= 1;
+    if (months < 0) months = 0;
 
-    if($wMonths) $wMonths.value = String(months);
+    if ($wMonths) $wMonths.value = String(months);
   });
 }
 
-// กัน submit แล้วค่าไม่ส่ง: sync hidden ก่อน submit ทุกครั้ง
 document.querySelector('form.form')?.addEventListener('submit', () => {
   syncWarrantyHidden();
-  // กัน customer_id เผื่อยังไม่เลือก/ว่าง
+
   const cid = (document.getElementById('customer_id')?.value || '').trim();
-  if(!cid){
-    // ถ้าไม่ได้เลือกจากระบบ ให้คงไว้เป็นค่าว่าง เพื่อให้ backend ตัดสินใจ unlink
+  if (!cid) {
     document.getElementById('customer_id').value = '';
   }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#installmentsWrap .installmentRow').forEach(bindInstallmentRow);
+  renumberInstallments();
+  recalcInstallmentPercent();
 });
 </script>
 {% endblock %}

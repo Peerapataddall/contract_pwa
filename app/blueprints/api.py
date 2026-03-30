@@ -17,6 +17,8 @@ from ..models import (
 
 bp_api = Blueprint("api", __name__)
 
+ALLOWED_PROJECT_STATUS = {"IN_PROGRESS", "DEFECT", "DONE"}
+
 
 def _parse_date(value: str | None):
     if not value:
@@ -42,6 +44,28 @@ def _to_float(x):
         return 0.0
 
 
+def _clean_text(v):
+    s = str(v or "").strip()
+    return s or None
+
+
+def _nonneg_float(x, field_label: str) -> float:
+    v = _to_float(x)
+    if v < 0:
+        raise ValueError(f"{field_label} ต้องไม่ติดลบ")
+    return v
+
+
+def _nonneg_int(x, field_label: str) -> int:
+    try:
+        v = int(str(x or "0").strip() or "0")
+    except Exception:
+        v = 0
+    if v < 0:
+        raise ValueError(f"{field_label} ต้องไม่ติดลบ")
+    return v
+
+
 @bp_api.get("/projects/<int:pid>")
 def get_project(pid: int):
     p = Project.query.get_or_404(pid)
@@ -52,6 +76,7 @@ def get_project(pid: int):
 def create_project():
     payload = request.get_json(silent=True) or {}
     p = Project()
+
     try:
         _apply_project_payload(p, payload)
     except ValueError as e:
@@ -62,7 +87,7 @@ def create_project():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"ok": False, "error": "รหัสโครงการซ้ำ (code ต้องไม่ซ้ำ)"}), 400
+        return jsonify({"ok": False, "error": "รหัสโครงการซ้ำ กรุณาใช้รหัสใหม่"}), 400
 
     return jsonify({"ok": True, "id": p.id})
 
@@ -81,7 +106,7 @@ def update_project(pid: int):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"ok": False, "error": "รหัสโครงการซ้ำ (code ต้องไม่ซ้ำ)"}), 400
+        return jsonify({"ok": False, "error": "รหัสโครงการซ้ำ กรุณาใช้รหัสใหม่"}), 400
 
     return jsonify({"ok": True, "id": p.id})
 
@@ -120,7 +145,6 @@ def _serialize_project(p: Project) -> dict:
                 "item_code": m.item_code or "",
                 "item_name": m.item_name or "",
                 "unit": m.unit or "",
-                # ✅ NEW: ใบกำกับภาษี “ต่อแถว”
                 "tax_invoice_no": (getattr(m, "tax_invoice_no", None) or ""),
                 "tax_invoice_date": (
                     getattr(m, "tax_invoice_date").isoformat()
@@ -170,105 +194,143 @@ def _serialize_project(p: Project) -> dict:
 
 
 def _apply_project_payload(p: Project, payload: dict) -> None:
-    p.code = (payload.get("code") or "").strip()
-    p.name = (payload.get("name") or "").strip()
-    p.description = (payload.get("description") or "").strip() or None
-    p.customer_name = (payload.get("customer_name") or "").strip() or None
-    p.location = (payload.get("location") or "").strip() or None
-    p.start_date = _parse_date(payload.get("start_date"))
-    p.end_date = _parse_date(payload.get("end_date"))
-    p.work_days = int(payload.get("work_days") or 0)
-    p.status = (payload.get("status") or "IN_PROGRESS").strip().upper()
+    code = (payload.get("code") or "").strip()
+    name = (payload.get("name") or "").strip()
+    description = _clean_text(payload.get("description"))
+    customer_name = _clean_text(payload.get("customer_name"))
+    location = _clean_text(payload.get("location"))
+    start_date = _parse_date(payload.get("start_date"))
+    end_date = _parse_date(payload.get("end_date"))
+    work_days = _nonneg_int(payload.get("work_days"), "จำนวนวันทำงาน")
+    status = (payload.get("status") or "IN_PROGRESS").strip().upper()
 
-    # ✅ NOTE: ย้ายใบกำกับภาษีวัสดุไปอยู่ใน MaterialItem แล้ว
-    # (ไม่ใช้ p.materials_tax_invoice_no/date ใน Project)
+    if not code:
+        raise ValueError("กรุณากรอกรหัสโครงการ")
+    if not name:
+        raise ValueError("กรุณากรอกชื่อโครงการ")
+    if status not in ALLOWED_PROJECT_STATUS:
+        raise ValueError("สถานะโครงการไม่ถูกต้อง")
+    if start_date and end_date and end_date < start_date:
+        raise ValueError("วันที่สิ้นสุดต้องไม่น้อยกว่าวันเริ่มต้น")
 
-    # clear and recreate children (ง่ายต่อ UI หน้าเดียว)
+    p.code = code
+    p.name = name
+    p.description = description
+    p.customer_name = customer_name
+    p.location = location
+    p.start_date = start_date
+    p.end_date = end_date
+    p.work_days = work_days
+    p.status = status
+
+    # clear and recreate children
     p.materials.clear()
     p.subcontractors.clear()
     p.expenses.clear()
     p.advances.clear()
 
-    for row in payload.get("materials") or []:
-        m = MaterialItem(
-            brand=(row.get("brand") or "").strip() or None,
-            item_code=(row.get("item_code") or "").strip() or None,
-            item_name=(row.get("item_name") or "").strip() or None,
-            unit=(row.get("unit") or "").strip() or None,
+    for idx, row in enumerate(payload.get("materials") or [], start=1):
+        brand = _clean_text(row.get("brand"))
+        item_code = _clean_text(row.get("item_code"))
+        item_name = _clean_text(row.get("item_name"))
+        unit = _clean_text(row.get("unit"))
+        tax_invoice_no = _clean_text(row.get("tax_invoice_no"))
+        tax_invoice_date = _parse_date(row.get("tax_invoice_date"))
+        unit_price = _nonneg_float(row.get("unit_price"), f"ราคาต่อหน่วยวัสดุ แถวที่ {idx}")
+        qty = _nonneg_float(row.get("qty"), f"จำนวนวัสดุ แถวที่ {idx}")
+        note = _clean_text(row.get("note"))
 
-            # ✅ NEW: ใบกำกับภาษี “ต่อแถว”
-            tax_invoice_no=(row.get("tax_invoice_no") or "").strip() or None,
-            tax_invoice_date=_parse_date(row.get("tax_invoice_date")),
+        has_any_text = bool(brand or item_code or item_name or unit or tax_invoice_no or note)
+        has_any_amount = (unit_price != 0) or (qty != 0)
 
-            unit_price=_to_float(row.get("unit_price")),
-            qty=_to_float(row.get("qty")),
-            note=(row.get("note") or "").strip() or None,
-        )
-
-        # ✅ ข้ามแถวว่าง: ถ้าไม่มีข้อมูลสำคัญเลย และยอดเป็น 0
-        has_any_text = bool(m.brand or m.item_code or m.item_name or m.tax_invoice_no)
-        has_any_amount = (float(m.unit_price or 0) != 0) or (float(m.qty or 0) != 0)
-        if (not has_any_text) and (not has_any_amount) and (not m.tax_invoice_date):
+        if (not has_any_text) and (not has_any_amount) and (not tax_invoice_date):
             continue
 
+        if qty > 0 and not item_name:
+            raise ValueError(f"กรุณากรอกชื่อวัสดุ แถวที่ {idx}")
+        if unit_price > 0 and not item_name:
+            raise ValueError(f"กรุณากรอกชื่อวัสดุ แถวที่ {idx}")
+
+        m = MaterialItem(
+            brand=brand,
+            item_code=item_code,
+            item_name=item_name or "(ไม่ระบุ)",
+            unit=unit,
+            tax_invoice_no=tax_invoice_no,
+            tax_invoice_date=tax_invoice_date,
+            unit_price=unit_price,
+            qty=qty,
+            note=note,
+        )
         p.materials.append(m)
 
-    for row in payload.get("subcontractors") or []:
+    for idx, row in enumerate(payload.get("subcontractors") or [], start=1):
         vendor_name = (row.get("vendor_name") or "").strip()
-        if not vendor_name and _to_float(row.get("contract_amount")) == 0:
+        pay_date = _parse_date(row.get("pay_date"))
+        contract_amount = _nonneg_float(row.get("contract_amount"), f"ยอดผู้รับเหมาช่วง แถวที่ {idx}")
+        wht_rate = _nonneg_float(row.get("withholding_rate"), f"อัตราหัก ณ ที่จ่ายผู้รับเหมาช่วง แถวที่ {idx}")
+        wht_amount = _to_float(row.get("withholding_amount"))
+        note = _clean_text(row.get("note"))
+
+        if not vendor_name and contract_amount == 0 and wht_rate == 0 and wht_amount == 0 and not pay_date and not note:
             continue
 
-        contract_amount = _to_float(row.get("contract_amount"))
-        wht_rate = _to_float(row.get("withholding_rate"))
-        wht_amount = _to_float(row.get("withholding_amount"))
+        if wht_amount < 0:
+            raise ValueError(f"ยอดหัก ณ ที่จ่ายผู้รับเหมาช่วง แถวที่ {idx} ต้องไม่ติดลบ")
+        if wht_rate > 100:
+            raise ValueError(f"อัตราหัก ณ ที่จ่ายผู้รับเหมาช่วง แถวที่ {idx} ต้องไม่เกิน 100%")
 
-        # ถ้าไม่กรอก withholding_amount แต่กรอก rate ให้คำนวณอัตโนมัติ
         if wht_amount == 0 and wht_rate > 0:
             wht_amount = round(contract_amount * wht_rate / 100.0, 2)
 
+        if wht_amount > contract_amount:
+            raise ValueError(f"ยอดหัก ณ ที่จ่ายผู้รับเหมาช่วง แถวที่ {idx} มากกว่ายอดจ้างไม่ได้")
+
         s = SubcontractorPayment(
             vendor_name=vendor_name or "(ไม่ระบุชื่อ)",
-            pay_date=_parse_date(row.get("pay_date")),
+            pay_date=pay_date,
             contract_amount=contract_amount,
             withholding_rate=wht_rate,
             withholding_amount=wht_amount,
-            note=(row.get("note") or "").strip() or None,
+            note=note,
         )
         p.subcontractors.append(s)
 
-    for row in payload.get("expenses") or []:
+    for idx, row in enumerate(payload.get("expenses") or [], start=1):
+        category = (row.get("category") or "อื่นๆ").strip() or "อื่นๆ"
         title = (row.get("title") or "").strip()
-        amount = _to_float(row.get("amount"))
-        if not title and amount == 0:
+        expense_date = _parse_date(row.get("expense_date"))
+        amount = _nonneg_float(row.get("amount"), f"ค่าใช้จ่ายอื่น แถวที่ {idx}")
+        note = _clean_text(row.get("note"))
+
+        if not title and amount == 0 and not expense_date and not note and category == "อื่นๆ":
             continue
 
         e = OtherExpense(
-            category=(row.get("category") or "อื่นๆ").strip() or "อื่นๆ",
+            category=category,
             title=title or "(ไม่ระบุ)",
-            expense_date=_parse_date(row.get("expense_date")),
+            expense_date=expense_date,
             amount=amount,
-            note=(row.get("note") or "").strip() or None,
+            note=note,
         )
         p.expenses.append(e)
 
-    for row in payload.get("advances") or []:
+    for idx, row in enumerate(payload.get("advances") or [], start=1):
         title = (row.get("title") or "").strip()
-        amount = _to_float(row.get("amount"))
-        if not title and amount == 0:
+        advance_date = _parse_date(row.get("advance_date"))
+        amount = _nonneg_float(row.get("amount"), f"เงินเบิกล่วงหน้า แถวที่ {idx}")
+        note = _clean_text(row.get("note"))
+
+        if not title and amount == 0 and not advance_date and not note:
             continue
 
         a = AdvanceExpense(
             title=title or "(ไม่ระบุ)",
-            advance_date=_parse_date(row.get("advance_date")),
+            advance_date=advance_date,
             amount=amount,
-            note=(row.get("note") or "").strip() or None,
+            note=note,
         )
         p.advances.append(a)
-
-    if not p.code:
-        raise ValueError("code is required")
-    if not p.name:
-        raise ValueError("name is required")
 
 
 # -------------------------
@@ -278,17 +340,24 @@ def _apply_project_payload(p: Project, payload: dict) -> None:
 def customers_search():
     q = (request.args.get("q") or "").strip()
     limit = min(int(request.args.get("limit") or 10), 50)
+
     if not q:
         return jsonify([])
 
     items = (
         Customer.query
         .filter(Customer.is_active.is_(True))
-        .filter(Customer.name.ilike(f"%{q}%"))
+        .filter(
+            (Customer.name.ilike(f"%{q}%"))
+            | (Customer.tax_id.ilike(f"%{q}%"))
+            | (Customer.phone.ilike(f"%{q}%"))
+            | (Customer.email.ilike(f"%{q}%"))
+        )
         .order_by(Customer.name.asc())
         .limit(limit)
         .all()
     )
+
     return jsonify([
         {
             "id": c.id,

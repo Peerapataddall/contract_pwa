@@ -2,66 +2,184 @@
 {% set title = "ลูกค้า" %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>{{ "แก้ไขลูกค้า" if customer else "เพิ่มลูกค้า" }}</h1>
-    <div class="muted">ข้อมูลนี้จะถูกใช้ตอนเลือกในใบเสนอราคา (QT)</div>
-  </div>
-  <div class="actions">
-    <a class="btn btn-ghost" href="{{ url_for('customers.customers_list') }}">กลับ</a>
-  </div>
-</div>
+<style>
+  .customerFormPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
 
-<div class="card">
-  <form method="post" class="grid grid-2">
-    <label class="field" style="grid-column:1/-1;">
-      <span>ชื่อลูกค้า *</span>
-      <input name="name" class="input" required value="{{ customer.name if customer else '' }}">
-    </label>
+  .formHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
 
-    <label class="field">
-      <span>โทร</span>
-      <input name="phone" class="input" value="{{ customer.phone if customer else '' }}">
-    </label>
+  .formHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
 
-    <label class="field">
-      <span>อีเมล</span>
-      <input name="email" class="input" value="{{ customer.email if customer else '' }}">
-    </label>
+  .formHero__actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
 
-    <label class="field">
-      <span>เลขผู้เสียภาษี</span>
-      <input name="tax_id" class="input" value="{{ customer.tax_id if customer else '' }}">
-    </label>
+  .formCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:20px;
+  }
 
-    <label class="field">
-      <span>ผู้ติดต่อ</span>
-      <input name="contact_name" class="input" value="{{ customer.contact_name if customer else '' }}">
-    </label>
+  .formSectionHead{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+  }
 
-    <label class="field" style="grid-column:1/-1;">
-      <span>ที่อยู่</span>
-      <textarea name="address" rows="3">{{ customer.address if customer else '' }}</textarea>
-    </label>
+  .formSectionHead__sub{
+    margin-top:4px;
+    color:var(--text-soft);
+    font-size:13px;
+  }
 
-    <label class="field" style="grid-column:1/-1;">
-      <span>หมายเหตุ</span>
-      <textarea name="note" rows="2">{{ customer.note if customer else '' }}</textarea>
-    </label>
+  .formGrid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
 
-    {% if customer %}
-    <label class="field" style="grid-column:1/-1;">
-      <span>สถานะ</span>
-      <select name="is_active" class="input">
-        <option value="1" {{ 'selected' if customer.is_active else '' }}>ACTIVE</option>
-        <option value="0" {{ 'selected' if not customer.is_active else '' }}>INACTIVE</option>
-      </select>
-    </label>
-    {% endif %}
+  .fullCol{
+    grid-column:1 / -1;
+  }
 
-    <div style="grid-column:1/-1; display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
-      <button class="btn btn-primary" type="submit">บันทึก</button>
+  .actionBar{
+    margin-top:18px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+    display:flex;
+    gap:10px;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+  }
+
+  textarea.input,
+  .field textarea{
+    min-height:96px;
+  }
+
+  @media (max-width: 820px){
+    .formGrid{
+      grid-template-columns:1fr;
+    }
+
+    .actionBar{
+      justify-content:stretch;
+    }
+
+    .actionBar .btn{
+      width:100%;
+    }
+  }
+</style>
+
+<div class="customerFormPage">
+  <div class="formHero">
+    <div>
+      <h1>{{ "แก้ไขลูกค้า" if customer else "เพิ่มลูกค้า" }}</h1>
+      <div class="formHero__sub">ข้อมูลนี้จะถูกใช้ตอนเลือกในใบเสนอราคา (QT) และเอกสารที่เกี่ยวข้อง</div>
     </div>
-  </form>
+
+    <div class="formHero__actions">
+      <a class="btn btn-ghost" href="{{ url_for('customers.customers_list') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>กลับ</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="formCard">
+    <div class="formSectionHead">
+      <div>
+        <div class="section-title">ข้อมูลลูกค้า</div>
+        <div class="formSectionHead__sub">กรอกรายละเอียดลูกค้าให้ครบ เพื่อให้ง่ายต่อการค้นหาและเลือกใช้งานภายหลัง</div>
+      </div>
+    </div>
+
+    <form method="post" class="formGrid">
+      <label class="field fullCol">
+        <span>ชื่อลูกค้า *</span>
+        <input name="name" class="input" required value="{{ customer.name if customer else '' }}">
+      </label>
+
+      <label class="field">
+        <span>โทรศัพท์</span>
+        <input name="phone" class="input" value="{{ customer.phone if customer else '' }}">
+      </label>
+
+      <label class="field">
+        <span>อีเมล</span>
+        <input name="email" class="input" value="{{ customer.email if customer else '' }}">
+      </label>
+
+      <label class="field">
+        <span>เลขผู้เสียภาษี</span>
+        <input name="tax_id" class="input" value="{{ customer.tax_id if customer else '' }}">
+      </label>
+
+      <label class="field">
+        <span>ผู้ติดต่อ</span>
+        <input name="contact_name" class="input" value="{{ customer.contact_name if customer else '' }}">
+      </label>
+
+      <label class="field fullCol">
+        <span>ที่อยู่</span>
+        <textarea name="address" class="input" rows="3">{{ customer.address if customer else '' }}</textarea>
+      </label>
+
+      <label class="field fullCol">
+        <span>หมายเหตุ</span>
+        <textarea name="note" class="input" rows="2">{{ customer.note if customer else '' }}</textarea>
+      </label>
+
+      {% if customer %}
+      <label class="field fullCol">
+        <span>สถานะ</span>
+        <select name="is_active" class="input">
+          <option value="1" {{ 'selected' if customer.is_active else '' }}>ใช้งานอยู่</option>
+          <option value="0" {{ 'selected' if not customer.is_active else '' }}>ปิดการใช้งาน</option>
+        </select>
+      </label>
+      {% endif %}
+
+      <div class="actionBar fullCol">
+        <a class="btn btn-ghost" href="{{ url_for('customers.customers_list') }}">
+          <i class="bi bi-x-circle"></i>
+          <span>ยกเลิก</span>
+        </a>
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-check2-circle"></i>
+          <span>บันทึก</span>
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}

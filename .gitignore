@@ -1,7 +1,15 @@
 .venv/
-__pycache__/
+venv/
 .env
-.pyc
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
 
-# ignore uploaded files (user data)
 app/static/uploads/
+*.db
+*.sqlite3
+
+.mypy_cache/
+.pytest_cache/

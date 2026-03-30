@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>{{ doc.doc_no }}</title>
   <style>
-    /* ========= A4 Modern Print ========= */
     @page { size: A4 portrait; margin: 12mm; }
     html, body { margin:0; padding:0; background:#fff; color:#0b1220; }
     body{
@@ -80,64 +79,22 @@
 </head>
 <body>
 
-  {# =============================
-     ✅ คำนวณยอดใน template (เพื่อให้ถูกต้องเสมอ)
-     - subtotal = sum(qty*unit - line_discount)
-     - net_before_tax = subtotal - discount_total
-     - WHT คิดก่อน VAT
-     - net_after_wht = net_before_tax - wht_amount
-     - VAT = net_after_wht * vat_rate
-     - grand_total = net_after_wht + vat_amount
-     ============================= #}
-  {% set ns = namespace(subtotal=0) %}
-  {% for it in doc.items %}
-    {% set qty = (it.qty or 0) %}
-    {% set price = (it.unit_price or 0) %}
-    {% set line_disc = (it.discount_amount or 0) %}
-    {% set line_total = (qty * price) - line_disc %}
-    {% set ns.subtotal = ns.subtotal + line_total %}
-  {% endfor %}
-  {% set subtotal = ns.subtotal %}
-  {% set discount_total = (doc.discount_amount or 0) %}
-  {% set net_before_tax = subtotal - discount_total %}
-  {% set vat_rate = (doc.vat_rate or 0) %}
-  {% set wht_rate = (doc.wht_rate or 0) %}
-  {% set wht_amount = (net_before_tax * wht_rate) / 100 %}
-  {% set net_after_wht = net_before_tax - wht_amount %}
-  {% set vat_amount = (net_after_wht * vat_rate) / 100 %}
-  {% set grand_total = net_after_wht + vat_amount %}
-
-
-  {# =============================
-     ✅ คำนวณยอดใน template (เพื่อให้ถูกต้องเสมอ)
-     - subtotal = sum(qty*unit - line_discount)
-     - net_before_tax = subtotal - discount_total
-     - WHT คิดก่อน VAT
-     - net_after_wht = net_before_tax - wht_amount
-     - VAT = net_after_wht * vat_rate
-     - grand_total = net_after_wht + vat_amount
-     ============================= #}
-  {% set ns = namespace(subtotal=0) %}
-  {% for it in doc.items %}
-    {% set qty = (it.qty or 0) %}
-    {% set price = (it.unit_price or 0) %}
-    {% set line_disc = (it.discount_amount or 0) %}
-    {% set line_total = (qty * price) - line_disc %}
-    {% set ns.subtotal = ns.subtotal + line_total %}
-  {% endfor %}
-
-  {% set subtotal = ns.subtotal %}
-  {% set discount_total = (doc.discount_amount or 0) %}
-  {% set net_before_tax = subtotal - discount_total %}
-  {% set vat_rate = (doc.vat_rate or 0) %}
-  {% set wht_rate = (doc.wht_rate or 0) %}
-  {% set wht_amount = (net_before_tax * wht_rate) / 100 %}
-  {% set net_after_wht = net_before_tax - wht_amount %}
-  {% set vat_amount = (net_after_wht * vat_rate) / 100 %}
-  {% set grand_total = net_after_wht + vat_amount %}
-
-
   {% set T = DOC_TITLE or {"QT":"ใบเสนอราคา","IV":"ใบกำกับภาษี","RC":"ใบเสร็จรับเงิน","BL":"ใบวางบิล/แจ้งหนี้"} %}
+
+  {# =============================
+     ใช้ยอดจาก model เป็นหลัก
+     ============================= #}
+  {% set subtotal = (doc.subtotal or 0) %}
+  {% set discount_total = (doc.discount_total or 0) %}
+  {% set net_before_tax = (doc.net_before_tax or 0) %}
+  {% set vat_rate = (doc.vat_rate or 0) %}
+  {% set wht_rate = (doc.wht_rate or 0) %}
+  {% set vat_amount = (doc.vat_amount or 0) %}
+  {% set wht_amount = (doc.wht_amount or 0) %}
+  {% set gross_total = (doc.gross_total or 0) %}
+  {% set net_after_wht = (doc.net_after_wht or 0) %}
+  {% set grand_total = (doc.grand_total or 0) %}
+
   {% set c = company %}
   {% set cname = (doc.company_name or (c.company_name if c else None) or "บริษัทของฉัน") %}
   {% set ctax = (doc.company_tax_id or (c.tax_id if c else None)) %}
@@ -147,7 +104,15 @@
   {% set cweb = (doc.company_website or (c.website if c else None)) %}
   {% set clogopath = (doc.company_logo_path or (c.logo_path if c else None)) %}
 
-  <!-- Header -->
+  {% set cust_name = (doc.customer_name or '') %}
+  {% set cust_tax = (doc.customer_tax_id or (doc.customer.tax_id if doc.customer else '') or '') %}
+  {% set cust_addr = (doc.customer_address or (doc.customer.address if doc.customer else '') or '') %}
+  {% set cust_phone = (doc.customer_phone or (doc.customer.phone if doc.customer else '') or '') %}
+  {% set cust_email = (doc.customer_email or (doc.customer.email if doc.customer else '') or '') %}
+
+  {% set parent_doc = (doc.parent if doc.parent is defined else None) %}
+  {% set installment = (doc.installment if doc.installment is defined else None) %}
+
   <div class="row between" style="align-items:flex-start;">
     <div class="row" style="align-items:center; gap:10px;">
       {% if clogopath %}
@@ -184,22 +149,47 @@
         {% if doc.due_date %}
         <tr><td class="k">ครบกำหนด</td><td class="v mono">{{ doc.due_date.strftime("%d/%m/%Y") }}</td></tr>
         {% endif %}
+        <tr><td class="k">สถานะ</td><td class="v">{{ doc.status or "-" }}</td></tr>
+
+        {% if installment %}
+        <tr>
+          <td class="k">งวด</td>
+          <td class="v">
+            งวดที่ {{ installment.installment_no }}
+            {% if installment.percent is not none %}
+              ({{ ('%.2f'|format(installment.percent or 0)).rstrip('0').rstrip('.') }}%)
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+
+        {% if parent_doc %}
+        <tr>
+          <td class="k">อ้างอิง</td>
+          <td class="v mono">{{ parent_doc.doc_no }}</td>
+        </tr>
+        {% elif doc.parent_id %}
+        <tr>
+          <td class="k">อ้างอิง</td>
+          <td class="v mono">#{{ doc.parent_id }}</td>
+        </tr>
+        {% endif %}
       </table>
     </div>
   </div>
 
-  <!-- Customer + Subject -->
   <div class="row" style="margin-top:12px;">
     <div class="card" style="flex:1;">
       <div class="h2">ข้อมูลลูกค้า</div>
-      <div><b>{{ doc.customer_name }}</b></div>
-      {% if doc.customer_address %}<div class="muted">{{ doc.customer_address }}</div>{% endif %}
+      <div><b>{{ cust_name or "-" }}</b></div>
+      {% if cust_addr %}<div class="muted">{{ cust_addr }}</div>{% endif %}
       <div class="muted">
-        {% if doc.customer_tax_id %}เลขผู้เสียภาษี {{ doc.customer_tax_id }}{% endif %}
-        {% if doc.customer_phone %}{% if doc.customer_tax_id %} • {% endif %}โทร: {{ doc.customer_phone }}{% endif %}
-        {% if doc.customer_email %}{% if doc.customer_tax_id or doc.customer_phone %} • {% endif %}{{ doc.customer_email }}{% endif %}
+        {% if cust_tax %}เลขผู้เสียภาษี {{ cust_tax }}{% endif %}
+        {% if cust_phone %}{% if cust_tax %} • {% endif %}โทร: {{ cust_phone }}{% endif %}
+        {% if cust_email %}{% if cust_tax or cust_phone %} • {% endif %}{{ cust_email }}{% endif %}
       </div>
     </div>
+
     <div class="card" style="flex:1;">
       <div class="h2">รายละเอียดงาน</div>
       <div><b>{{ doc.subject or "-" }}</b></div>
@@ -207,7 +197,6 @@
     </div>
   </div>
 
-  <!-- Items -->
   <table class="items" style="margin-top:12px;">
     <thead>
       <tr>
@@ -215,43 +204,58 @@
         <th>รายละเอียด</th>
         <th style="width:86px;">จำนวน</th>
         <th style="width:120px;">ราคาต่อหน่วย</th>
+        <th style="width:120px;">ส่วนลด</th>
         <th style="width:130px;">ยอดรวม</th>
       </tr>
     </thead>
     <tbody>
-      {% for it in doc.items %}
+      {% for it in (doc.items or []) %}
       <tr>
         <td class="center">{{ loop.index }}</td>
         <td>{{ it.description }}</td>
-        <td class="center mono">{{ "%.2f"|format(it.qty) }}</td>
-        <td class="right mono">{{ "%.2f"|format(it.unit_price) }}</td>
-        <td class="right mono">{{ "%.2f"|format((it.qty*it.unit_price)-(it.discount_amount or 0)) }}</td>
+        <td class="center mono">{{ "%.2f"|format(it.qty or 0) }}</td>
+        <td class="right mono">{{ "%.2f"|format(it.unit_price or 0) }}</td>
+        <td class="right mono">{{ "%.2f"|format(it.discount_amount or 0) }}</td>
+        <td class="right mono">{{ "%.2f"|format(it.line_total or 0) }}</td>
       </tr>
       {% endfor %}
 
+      {% if not (doc.items and doc.items|length) %}
       <tr>
-        <td colspan="3" style="border-left-color: transparent; border-bottom-color: transparent;"></td>
+        <td colspan="6" class="center muted">ยังไม่มีรายการ</td>
+      </tr>
+      {% endif %}
+
+      <tr>
+        <td colspan="4" style="border-left-color: transparent; border-bottom-color: transparent;"></td>
         <td colspan="2" style="padding:0;">
           <table class="totals">
-            <tr><td>รวมเป็นเงิน</td><td class="mono">{{ "%.2f"|format(net_before_tax) }}</td></tr>
-            <tr><td>หักภาษี ณ ที่จ่าย {{ "%.2f"|format(wht_rate) }}%</td><td class="mono">- {{ "%.2f"|format(wht_amount) }}</td></tr>
-            <tr><td>ยอดหลังหัก ณ ที่จ่าย</td><td class="mono">{{ "%.2f"|format(net_after_wht) }}</td></tr>
+            <tr><td>ยอดรวมรายการ</td><td class="mono">{{ "%.2f"|format(subtotal) }}</td></tr>
+            <tr><td>ส่วนลดท้ายบิล</td><td class="mono">- {{ "%.2f"|format(discount_total) }}</td></tr>
+            <tr><td>ฐานก่อนภาษี</td><td class="mono">{{ "%.2f"|format(net_before_tax) }}</td></tr>
             <tr><td>ภาษีมูลค่าเพิ่ม {{ "%.2f"|format(vat_rate) }}%</td><td class="mono">+ {{ "%.2f"|format(vat_amount) }}</td></tr>
-            <tr class="grand"><td>ยอดชำระ</td><td class="mono">{{ "%.2f"|format(grand_total) }}</td></tr>
+            <tr><td>ยอดก่อนหัก ณ ที่จ่าย</td><td class="mono">{{ "%.2f"|format(gross_total) }}</td></tr>
+            <tr><td>หักภาษี ณ ที่จ่าย {{ "%.2f"|format(wht_rate) }}%</td><td class="mono">- {{ "%.2f"|format(wht_amount) }}</td></tr>
+            <tr class="grand"><td>ยอดสุทธิ</td><td class="mono">{{ "%.2f"|format(grand_total) }}</td></tr>
           </table>
         </td>
       </tr>
     </tbody>
   </table>
 
-  <!-- Notes -->
   <div class="row" style="margin-top:10px;">
     <div class="card" style="flex:1;">
       <div class="h2">หมายเหตุ</div>
       <div style="white-space:pre-wrap;">{{ doc.note or "-" }}</div>
     </div>
+
     <div class="card" style="flex:1;">
       <div class="h2">ข้อมูลการชำระเงิน</div>
+
+      {% if doc.payment_terms %}
+        <div style="white-space:pre-wrap; margin-bottom:8px;">{{ doc.payment_terms }}</div>
+      {% endif %}
+
       {% if doc.doc_type == 'QT' %}
         {% set _bank = (company.payment_bank if company else None) %}
         {% set _accno = (company.payment_account_no if company else None) %}
@@ -265,16 +269,42 @@
             {% if _accname %}<tr><td class="k">ชื่อบัญชี</td><td>{{ _accname }}</td></tr>{% endif %}
             {% if _branch %}<tr><td class="k">สาขา</td><td>{{ _branch }}</td></tr>{% endif %}
           </table>
-        {% else %}
+        {% elif not doc.payment_terms %}
           <div class="muted">-</div>
         {% endif %}
-      {% else %}
+      {% elif not doc.payment_terms %}
         <div class="muted">-</div>
       {% endif %}
     </div>
   </div>
 
-  <!-- Signature -->
+  <div class="row" style="margin-top:10px;">
+    <div class="card" style="flex:1;">
+      <div class="h2">เงื่อนไขเงินประกัน</div>
+      <div style="white-space:pre-wrap;">{{ doc.deposit_note or "-" }}</div>
+    </div>
+
+    <div class="card" style="flex:1;">
+      <div class="h2">การรับประกัน</div>
+      <table class="kv">
+        <tr>
+          <td class="k">ระยะเวลา</td>
+          <td>{{ (doc.warranty_months ~ ' เดือน') if doc.warranty_months else '-' }}</td>
+        </tr>
+        <tr>
+          <td class="k">สิ้นสุด</td>
+          <td>
+            {% if doc.warranty_end_date %}
+              {{ doc.warranty_end_date.strftime("%d/%m/%Y") }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
   <div class="sign">
     <div class="sigbox">
       <div class="line"></div>

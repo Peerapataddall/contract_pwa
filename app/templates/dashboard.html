@@ -1,156 +1,756 @@
-{% extends 'base.html' %} 
+{% extends 'base.html' %}
 {% set title = 'สรุป' %}
+
+{% block head %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
 
 {% block content %}
 <style>
-  .dashFilters{
-    display:flex; gap:10px; flex-wrap:wrap; align-items:end; justify-content:space-between;
+  .dashPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
   }
-  .dashFilters .left{ display:flex; gap:10px; flex-wrap:wrap; }
-  .btn{ min-height:44px; }
-  .input{ min-height:44px; }
+
+  .dashIntro{
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+
+  .dashIntro__meta{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+
+  .periodBadge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    min-height:38px;
+    padding:8px 12px;
+    border-radius:999px;
+    background:linear-gradient(180deg, #F5FAFF 0%, #EAF3FF 100%);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-weight:700;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .filterCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .dashFilters{
+    display:flex;
+    gap:14px;
+    flex-wrap:wrap;
+    align-items:end;
+    justify-content:space-between;
+  }
+
+  .dashFilters .left{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    align-items:end;
+  }
+
+  .filterBox{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .heroPanel{
+    position:relative;
+    overflow:hidden;
+    border:1px solid var(--line);
+    border-radius:24px;
+    padding:20px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.12), transparent 26%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.10), transparent 28%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .heroPanel::after{
+    content:"";
+    position:absolute;
+    right:-40px;
+    top:-40px;
+    width:180px;
+    height:180px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(204,226,255,.55), rgba(204,226,255,0));
+    pointer-events:none;
+  }
+
+  .heroHeader{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    position:relative;
+    z-index:1;
+  }
+
+  .heroEyebrow{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.35px;
+    text-transform:uppercase;
+    color:var(--text-soft);
+  }
+
+  .heroTitle{
+    margin:6px 0 0 0;
+    font-size:26px;
+    font-weight:800;
+    color:var(--text);
+    line-height:1.2;
+  }
+
+  .heroSub{
+    margin-top:8px;
+    color:var(--text-soft);
+  }
+
+  .heroStats{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap:12px;
+    margin-top:16px;
+    position:relative;
+    z-index:1;
+  }
+
+  .heroMini{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFFFF 0%, #F6FAFF 100%);
+    border-radius:18px;
+    padding:14px;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .heroMini .k{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-bottom:6px;
+    font-weight:600;
+  }
+
+  .heroMini .v{
+    font-size:20px;
+    font-weight:800;
+    color:var(--text);
+  }
 
   .kpiGrid{
     display:grid;
-    grid-template-columns: repeat(6, 1fr); /* ✅ จาก 4 -> 6 ช่อง */
+    grid-template-columns: repeat(4, 1fr);
     gap:12px;
   }
+
   .kpi{
-    border: 1px solid rgba(255,255,255,.08);
-    background: rgba(10,15,25,.35);
-    border-radius: 16px;
-    padding: 12px 14px;
+    border-radius:20px;
+    padding:18px;
+    border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
   }
-  .kpi .k{ font-size:12px; opacity:.75; }
-  .kpi .v{ font-size:22px; font-weight:800; margin-top:4px; }
 
-  /* ✅ สี กำไร/ขาดทุน */
-  .pl-pos{ color: rgba(120, 255, 180, .95); }
-  .pl-neg{ color: rgba(255, 140, 140, .95); }
+  .kpi .k{
+    font-size:13px;
+    font-weight:600;
+    color:var(--text-soft);
+  }
 
-  .table-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; }
-  .table{ min-width: 820px; }
+  .kpi .v{
+    font-size:22px;
+    font-weight:800;
+    margin-top:8px;
+  }
+
+  .kpi--materials{
+    background:linear-gradient(180deg, #EAF3FF 0%, #CCE2FF 100%);
+    border-color:#C2D9F3;
+  }
+  .kpi--materials .v{ color:#1E40AF; }
+
+  .kpi--subs{
+    background:linear-gradient(180deg, #FFF3E1 0%, #FFE7C7 100%);
+    border-color:#F5D4A6;
+  }
+  .kpi--subs .v{ color:#B45309; }
+
+  .kpi--expenses{
+    background:linear-gradient(180deg, #F2EBFF 0%, #E9DDFF 100%);
+    border-color:#D9C9F7;
+  }
+  .kpi--expenses .v{ color:#6D28D9; }
+
+  .kpi--advances{
+    background:linear-gradient(180deg, #ECFFF2 0%, #DDFBE5 100%);
+    border-color:#C1EFD0;
+  }
+  .kpi--advances .v{ color:#15803D; }
+
+  .kpi--grand{
+    background:linear-gradient(180deg, #F8FBFF 0%, #EAF3FF 100%);
+    border-color:#CFE1F4;
+  }
+  .kpi--grand .v{ color:#16324F; }
+
+  .kpi--income{
+    background:linear-gradient(180deg, #EAF3FF 0%, #CCE2FF 100%);
+    border-color:#C2D9F3;
+  }
+  .kpi--income .v{ color:#1E40AF; }
+
+  .kpi--pl{
+    grid-column: 1 / -1;
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border-color:var(--line);
+  }
+
+  .pl-pos{ color:#15803D; }
+  .pl-neg{ color:#C2410C; }
+
+  .contentGrid{
+    display:grid;
+    grid-template-columns: 1.55fr .95fr;
+    gap:14px;
+  }
+
+  .chartCard,
+  .sideCard,
+  .tableCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    padding:18px;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .chartCard canvas{
+    display:block;
+  }
+
+  .chartMeta{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .metricPill{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px 14px;
+  }
+
+  .metricPill .k{
+    font-size:12px;
+    color:var(--text-soft);
+    font-weight:600;
+  }
+
+  .metricPill .v{
+    font-weight:800;
+    margin-top:6px;
+    color:var(--text);
+  }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border-radius:18px;
+  }
+
+  .table{
+    min-width:980px;
+  }
+
+  .listClean{
+    display:grid;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .listItem{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:center;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFFFF 0%, #F7FBFF 100%);
+    border-radius:16px;
+    padding:14px;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .listItem .name{
+    font-weight:700;
+    color:var(--text);
+  }
+
+  .listItem .sub{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-top:3px;
+  }
+
+  .emptyState{
+    border:1px dashed var(--line-strong);
+    border-radius:18px;
+    padding:20px;
+    text-align:center;
+    color:var(--text-soft);
+    background:linear-gradient(180deg, #F9FCFF 0%, #F3F8FF 100%);
+    margin-top:14px;
+  }
 
   @media (max-width: 1100px){
-    .kpiGrid{ grid-template-columns: 1fr 1fr 1fr; } /* 3 ช่อง/แถว */
+    .heroStats{ grid-template-columns: 1fr 1fr; }
+    .kpiGrid{ grid-template-columns: 1fr 1fr; }
+    .contentGrid{ grid-template-columns: 1fr; }
   }
+
   @media (max-width: 860px){
-    .kpiGrid{ grid-template-columns: 1fr 1fr; } /* 2 ช่อง/แถว */
+    .heroStats{ grid-template-columns: 1fr; }
+    .kpiGrid{ grid-template-columns: 1fr; }
+    .chartMeta{ grid-template-columns: 1fr; }
+    .kpi--pl{ grid-column:auto; }
+    .heroTitle{ font-size:22px; }
   }
 </style>
 
-<div class="pagehead">
-  <div>
-    <h1>สรุปภาพรวม</h1>
-    <div class="muted">กรองตาม “วันเริ่มโครงการ” (เดือน/ปี)</div>
-  </div>
-</div>
-
-<div class="card">
-  <form class="dashFilters" method="get" action="{{ url_for('pages.dashboard') }}">
-    <div class="left">
-      <div>
-        <label class="label">ปี</label>
-        <select class="input" name="year">
-          {% for y in years %}
-            <option value="{{ y }}" {{ 'selected' if y==year else '' }}>{{ y }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="label">เดือน</label>
-        <select class="input" name="month">
-          <option value="" {{ 'selected' if not month else '' }}>ทั้งปี</option>
-          {% for m in range(1,13) %}
-            <option value="{{ m }}" {{ 'selected' if month==m else '' }}>{{ "%02d"|format(m) }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <button class="btn btn-primary" type="submit">🔎 ดูผล</button>
-      </div>
-    </div>
-
+<div class="dashPage">
+  <div class="dashIntro">
     <div>
-      <a class="btn" href="{{ url_for('pages.dashboard_export_xlsx', year=year, month=month or '') }}">⬇️ Export Excel</a>
+      <h1>สรุปภาพรวม</h1>
+      <div class="muted">กรองตามวันเริ่มโครงการ หรือวันที่สร้างโครงการในกรณีที่ยังไม่ได้กำหนดวันเริ่ม</div>
     </div>
-  </form>
-</div>
 
-<div class="kpiGrid mt-12">
-  <div class="kpi">
-    <div class="k">ค่าวัสดุรวม</div>
-    <div class="v mono">{{ '%.2f'|format(totals.materials or 0) }}</div>
-  </div>
-  <div class="kpi">
-    <div class="k">ผู้รับเหมาช่วงรวม (จ่ายจริง)</div>
-    <div class="v mono">{{ '%.2f'|format(totals.subs or 0) }}</div>
-  </div>
-  <div class="kpi">
-    <div class="k">ค่าใช้จ่ายอื่นรวม</div>
-    <div class="v mono">{{ '%.2f'|format(totals.expenses or 0) }}</div>
-  </div>
-  <div class="kpi">
-    <div class="k">รวมทั้งหมด</div>
-    <div class="v mono">{{ '%.2f'|format(totals.grand or 0) }}</div>
-  </div>
-
-  {# ✅ เพิ่ม: รายรับรวม (จาก QT APPROVED) #}
-  <div class="kpi">
-    <div class="k">รายรับรวม</div>
-    <div class="v mono">{{ '%.2f'|format(total_income or 0) }}</div>
-  </div>
-
-  {# ✅ เพิ่ม: กำไร/ขาดทุนรวม = รายรับรวม - รวมทั้งหมด #}
-  {% set pl = (profit_loss or 0) %}
-  <div class="kpi">
-    <div class="k">กำไร/ขาดทุน</div>
-    <div class="v mono">
-      <span class="{{ 'pl-neg' if pl < 0 else 'pl-pos' }}">
-        {{ '%.2f'|format(pl) }}
-      </span>
-    </div>
-  </div>
-</div>
-
-<div class="card mt-12">
-  <div class="section-head">
-    <div>
-      <div class="section-title">Top 5 โครงการใช้เงินสูงสุด</div>
-      <div class="muted">ตามช่วงที่กรอง</div>
+    <div class="dashIntro__meta">
+      <div class="periodBadge">
+        <i class="bi bi-calendar3"></i>
+        <span>ช่วงข้อมูล: {{ period_label }}</span>
+      </div>
     </div>
   </div>
 
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>รหัส</th>
-          <th>ชื่อโครงการ</th>
-          <th class="right">ค่าวัสดุ</th>
-          <th class="right">ผู้รับเหมาช่วง</th>
-          <th class="right">อื่นๆ</th>
-          <th class="right">รวม</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% if top5 %}
-          {% for row in top5 %}
+  <div class="filterCard">
+    <form class="dashFilters" method="get" action="{{ url_for('pages.dashboard') }}">
+      <div class="left">
+        <div>
+          <label class="label">รูปแบบการดูข้อมูล</label>
+          <select class="input" name="mode" id="mode" onchange="toggleDashboardFilters()">
+            <option value="day" {{ 'selected' if mode == 'day' else '' }}>รายวัน</option>
+            <option value="month" {{ 'selected' if mode == 'month' else '' }}>รายเดือน</option>
+            <option value="year" {{ 'selected' if mode == 'year' else '' }}>รายปี</option>
+            <option value="range" {{ 'selected' if mode == 'range' else '' }}>ช่วงวันที่</option>
+          </select>
+        </div>
+
+        <div id="filter-day" class="filterBox" style="{{ '' if mode == 'day' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">ปี</label>
+              <select class="input" name="year">
+                {% for y in years %}
+                  <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">เดือน</label>
+              <select class="input" name="month">
+                {% for m in range(1,13) %}
+                  <option value="{{ m }}" {{ 'selected' if m == month else '' }}>{{ "%02d"|format(m) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">วัน</label>
+              <select class="input" name="day">
+                {% for d in range(1,32) %}
+                  <option value="{{ d }}" {{ 'selected' if d == day else '' }}>{{ "%02d"|format(d) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="filter-month" class="filterBox" style="{{ '' if mode == 'month' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">ปี</label>
+              <select class="input" name="year">
+                {% for y in years %}
+                  <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">เดือน</label>
+              <select class="input" name="month">
+                {% for m in range(1,13) %}
+                  <option value="{{ m }}" {{ 'selected' if m == month else '' }}>{{ "%02d"|format(m) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="filter-year" class="filterBox" style="{{ '' if mode == 'year' else 'display:none;' }}">
+          <div>
+            <label class="label">ปี</label>
+            <select class="input" name="year">
+              {% for y in years %}
+                <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div id="filter-range" class="filterBox" style="{{ '' if mode == 'range' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">วันที่เริ่มต้น</label>
+              <input class="input" type="date" name="start_date" value="{{ start_date or '' }}">
+            </div>
+            <div>
+              <label class="label">วันที่สิ้นสุด</label>
+              <input class="input" type="date" name="end_date" value="{{ end_date or '' }}">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-funnel-fill"></i>
+            <span>ดูผล</span>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <a
+          class="btn"
+          href="{{ url_for('pages.dashboard_export_xlsx', mode=mode, year=year, month=month, day=day, start_date=start_date, end_date=end_date) }}"
+        >
+          <i class="bi bi-file-earmark-excel"></i>
+          <span>Export Excel</span>
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <div class="heroPanel">
+    <div class="heroHeader">
+      <div>
+        <div class="heroEyebrow">Project Performance</div>
+        <div class="heroTitle">ภาพรวมต้นทุนและรายรับ</div>
+        <div class="heroSub">{{ chart_title }} · {{ bucket_hint }}</div>
+      </div>
+
+      <div class="periodBadge">
+        <i class="bi bi-graph-up-arrow"></i>
+        <span>{{ period_label }}</span>
+      </div>
+    </div>
+
+    <div class="heroStats">
+      {% for card in summary_cards %}
+        <div class="heroMini">
+          <div class="k">{{ card.label }}</div>
+          <div class="v mono">
+            {% if card.label == 'จำนวนโครงการ' %}
+              {{ card.value }}
+            {% else %}
+              {{ "{:,.2f}".format(card.value or 0) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="kpiGrid">
+    <div class="kpi kpi--materials">
+      <div class="k">ค่าวัสดุรวม</div>
+      <div class="v mono">{{ '%.2f'|format(totals.materials or 0) }}</div>
+    </div>
+
+    <div class="kpi kpi--subs">
+      <div class="k">ผู้รับเหมาช่วงรวม</div>
+      <div class="v mono">{{ '%.2f'|format(totals.subs or 0) }}</div>
+    </div>
+
+    <div class="kpi kpi--expenses">
+      <div class="k">ค่าใช้จ่ายอื่นรวม</div>
+      <div class="v mono">{{ '%.2f'|format(totals.expenses or 0) }}</div>
+    </div>
+
+    <div class="kpi kpi--advances">
+      <div class="k">เงินเบิกล่วงหน้ารวม</div>
+      <div class="v mono">{{ '%.2f'|format(totals.advances or 0) }}</div>
+    </div>
+
+    <div class="kpi kpi--grand">
+      <div class="k">ต้นทุนรวมทั้งหมด</div>
+      <div class="v mono">{{ '%.2f'|format(totals.grand or 0) }}</div>
+    </div>
+
+    <div class="kpi kpi--income">
+      <div class="k">รายรับรวม</div>
+      <div class="v mono">{{ '%.2f'|format(total_income or 0) }}</div>
+    </div>
+
+    {% set pl = (profit_loss or 0) %}
+    <div class="kpi kpi--pl">
+      <div class="k">กำไร / ขาดทุน</div>
+      <div class="v mono">
+        <span class="{{ 'pl-neg' if pl < 0 else 'pl-pos' }}">
+          {{ '%.2f'|format(pl) }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="contentGrid">
+    <div class="chartCard">
+      <div class="section-head" style="margin-bottom:0;">
+        <div>
+          <div class="section-title">{{ chart_title }}</div>
+          <div class="muted">{{ bucket_hint }}</div>
+        </div>
+        <div class="muted mono">จำนวนโครงการในกราฟ: {{ counts|sum }}</div>
+      </div>
+
+      {% if labels and series and (series|sum) > 0 %}
+        <div style="margin-top:14px; height:360px;">
+          <canvas id="projectChart"></canvas>
+        </div>
+
+        <div class="chartMeta">
+          <div class="metricPill">
+            <div class="k">ต้นทุนรวมในกราฟ</div>
+            <div class="v mono">{{ "{:,.2f}".format((series|sum) or 0) }}</div>
+          </div>
+          <div class="metricPill">
+            <div class="k">ค่าเฉลี่ยต่อช่วง</div>
+            <div class="v mono">{{ "{:,.2f}".format(avg_per_bucket or 0) }}</div>
+          </div>
+          <div class="metricPill">
+            <div class="k">ค่าสูงสุดในกราฟ</div>
+            <div class="v mono">{{ "{:,.2f}".format(max_series_value or 0) }}</div>
+          </div>
+        </div>
+      {% else %}
+        <div class="emptyState">
+          <div style="font-weight:700;">ยังไม่มีข้อมูลสำหรับสร้างกราฟ</div>
+          <div class="muted" style="margin-top:4px;">ลองเปลี่ยนช่วงวันที่ หรือเพิ่มข้อมูลโครงการในระบบ</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="sideCard">
+      <div class="section-head" style="margin-bottom:0;">
+        <div>
+          <div class="section-title">Top 5 โครงการใช้เงินสูงสุด</div>
+          <div class="muted">อ้างอิงตามช่วงข้อมูลที่เลือก</div>
+        </div>
+      </div>
+
+      {% if top_projects %}
+        <div class="listClean">
+          {% for row in top_projects %}
+            <div class="listItem">
+              <div>
+                <div class="name">{{ row['name'] }}</div>
+                <div class="sub mono">{{ row['code'] }}</div>
+              </div>
+              <div class="mono" style="font-weight:800; color:var(--text);">{{ "{:,.2f}".format(row['total'] or 0) }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="emptyState">
+          ไม่มีข้อมูลในช่วงที่เลือก
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="tableCard">
+    <div class="section-head">
+      <div>
+        <div class="section-title">รายละเอียดต้นทุนโครงการ</div>
+        <div class="muted">สรุปต้นทุนแยกตามหมวดของแต่ละโครงการ</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
           <tr>
-            <td class="mono">{{ row['code'] }}</td>
-            <td>{{ row['name'] }}</td>
-            <td class="right mono">{{ '%.2f'|format(row['materials'] or 0) }}</td>
-            <td class="right mono">{{ '%.2f'|format(row['subs'] or 0) }}</td>
-            <td class="right mono">{{ '%.2f'|format(row['expenses'] or 0) }}</td>
-            <td class="right mono" style="font-weight:800;">{{ '%.2f'|format(row['total'] or 0) }}</td>
+            <th>รหัส</th>
+            <th>ชื่อโครงการ</th>
+            <th class="right">ค่าวัสดุ</th>
+            <th class="right">ผู้รับเหมาช่วง</th>
+            <th class="right">ค่าใช้จ่ายอื่น</th>
+            <th class="right">เงินเบิกล่วงหน้า</th>
+            <th class="right">รวม</th>
           </tr>
-          {% endfor %}
-        {% else %}
-          <tr><td colspan="6" class="muted">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% if top5 %}
+            {% for row in top5 %}
+            <tr>
+              <td class="mono">{{ row['code'] }}</td>
+              <td>{{ row['name'] }}</td>
+              <td class="right mono">{{ '%.2f'|format(row['materials'] or 0) }}</td>
+              <td class="right mono">{{ '%.2f'|format(row['subs'] or 0) }}</td>
+              <td class="right mono">{{ '%.2f'|format(row['expenses'] or 0) }}</td>
+              <td class="right mono">{{ '%.2f'|format(row['advances'] or 0) }}</td>
+              <td class="right mono" style="font-weight:800;">{{ '%.2f'|format(row['total'] or 0) }}</td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="7" class="muted center">ไม่มีข้อมูลในช่วงที่เลือก</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
+
+<script>
+function toggleDashboardFilters(){
+  const mode = document.getElementById('mode')?.value || 'month';
+  const ids = ['filter-day', 'filter-month', 'filter-year', 'filter-range'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const active = document.getElementById(`filter-${mode}`);
+  if (active) active.style.display = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  toggleDashboardFilters();
+
+  const labels = {{ labels|tojson }};
+  const series = {{ series|tojson }};
+  const counts = {{ counts|tojson }};
+
+  const canvas = document.getElementById('projectChart');
+  if (!canvas) return;
+
+  new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'ต้นทุนรวม',
+        data: series,
+        backgroundColor: '#7DB7FF',
+        borderColor: '#3B82F6',
+        borderWidth: 1.5,
+        borderRadius: 10,
+        maxBarThickness: 48
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: true,
+          labels: {
+            color: '#5F7C99',
+            font: {
+              family: 'Prompt'
+            }
+          }
+        },
+        tooltip: {
+          backgroundColor: '#16324F',
+          titleColor: '#FFFFFF',
+          bodyColor: '#FFFFFF',
+          padding: 12,
+          cornerRadius: 12,
+          callbacks: {
+            label: (ctx) => {
+              const val = Number(ctx.raw || 0);
+              return 'ต้นทุนรวม: ' + val.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+            },
+            afterBody: (items) => {
+              const i = items?.[0]?.dataIndex ?? 0;
+              return 'จำนวนโครงการ: ' + (counts[i] ?? 0);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#5F7C99',
+            font: {
+              family: 'Prompt'
+            }
+          },
+          grid: {
+            display: false
+          },
+          border: {
+            color: '#D3E2F5'
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#5F7C99',
+            font: {
+              family: 'Prompt'
+            },
+            callback: (v) => {
+              try { return Number(v).toLocaleString(); } catch(e){ return v; }
+            }
+          },
+          grid: {
+            color: '#E4EFFB'
+          },
+          border: {
+            color: '#D3E2F5'
+          }
+        }
+      }
+    }
+  });
+});
+</script>
 
 {% endblock %}

@@ -59,13 +59,13 @@ class Project(db.Model, TimestampMixin):
     status = db.Column(db.String(30), nullable=False, default="IN_PROGRESS")
 
     # -------------------------------------------------
-    # ✅ Deposit return tracking (คืนเงินประกัน)
+    # Deposit return tracking
     # -------------------------------------------------
     deposit_returned = db.Column(db.Boolean, nullable=False, default=False)
     deposit_returned_at = db.Column(db.Date, nullable=True)
 
     # -------------------------------------------------
-    # ✅ link Project <-> QT (SalesDoc) one-to-one
+    # link Project <-> QT (SalesDoc) one-to-one
     # -------------------------------------------------
     sales_doc_id = db.Column(
         db.Integer,
@@ -75,17 +75,9 @@ class Project(db.Model, TimestampMixin):
         index=True,
     )
 
-    # ✅ BOQ paths on Project
     boq_excel_path = db.Column(db.String(255), nullable=True)
     boq_pdf_path = db.Column(db.String(255), nullable=True)
 
-    # -------------------------------------------------
-    # ✅ NOTE: ย้าย “อ้างอิงใบกำกับภาษีค่าวัสดุ” ไปอยู่ใน MaterialItem แล้ว
-    # - เดิมอยู่ที่:
-    #   materials_tax_invoice_no / materials_tax_invoice_date
-    # -------------------------------------------------
-
-    # relationships
     sales_doc = db.relationship(
         "SalesDoc",
         backref=db.backref("project", uselist=False),
@@ -114,8 +106,6 @@ class Project(db.Model, TimestampMixin):
         cascade="all, delete-orphan",
         order_by="OtherExpense.id",
     )
-
-    # ✅ เงินเบิกล่วงหน้า
     advances = db.relationship(
         "AdvanceExpense",
         backref="project",
@@ -137,7 +127,6 @@ class Project(db.Model, TimestampMixin):
 
     @property
     def total_subcontractor_cost(self) -> float:
-        # จ่ายจริง = ว่าจ้าง - หัก ณ ที่จ่าย
         return float(sum((s.payable_amount or 0) for s in self.subcontractors))
 
     @property
@@ -168,11 +157,10 @@ class MaterialItem(db.Model, TimestampMixin):
     project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
 
     brand = db.Column(db.String(120), nullable=True)
-    item_code = db.Column(db.String(80), nullable=True)  # รหัส/sku
+    item_code = db.Column(db.String(80), nullable=True)
     item_name = db.Column(db.String(200), nullable=True)
     unit = db.Column(db.String(40), nullable=True)
 
-    # ✅ NEW: อ้างอิงใบกำกับภาษี “ต่อรายการย่อย”
     tax_invoice_no = db.Column(db.String(60), nullable=True)
     tax_invoice_date = db.Column(db.Date, nullable=True)
 
@@ -203,13 +191,9 @@ class SubcontractorPayment(db.Model, TimestampMixin):
     project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
 
     vendor_name = db.Column(db.String(200), nullable=False)
-
-    # ✅ วันที่จ่าย
     pay_date = db.Column(db.Date, nullable=True)
 
     contract_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
-
-    # ภาษีหัก ณ ที่จ่าย (%)
     withholding_rate = db.Column(db.Numeric(6, 2), nullable=False, default=0)
     withholding_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
@@ -223,7 +207,6 @@ class SubcontractorPayment(db.Model, TimestampMixin):
 
     @property
     def payable_amount(self) -> float:
-        # จ่ายจริง
         return float((self.contract_amount or 0) - (self.withholding_amount or 0))
 
 
@@ -237,8 +220,6 @@ class OtherExpense(db.Model, TimestampMixin):
     project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False)
 
     category = db.Column(db.String(80), nullable=False, default="อื่นๆ")
-
-    # ✅ วันที่ค่าใช้จ่าย
     expense_date = db.Column(db.Date, nullable=True)
 
     title = db.Column(db.String(200), nullable=False)
@@ -255,10 +236,6 @@ class OtherExpense(db.Model, TimestampMixin):
 # Advance expense
 # =========================================================
 class AdvanceExpense(db.Model, TimestampMixin):
-    """
-    ✅ เงินเบิกล่วงหน้า (โครงเหมือนค่าใช้จ่ายอื่น)
-    - หนึ่งโครงการมีหลายรายการ
-    """
     __tablename__ = "advance_expenses"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -281,9 +258,6 @@ class AdvanceExpense(db.Model, TimestampMixin):
 # Dashboard aggregates
 # =========================================================
 def dashboard_aggregates(year: int | None = None, month: int | None = None) -> dict:
-    """
-    Aggregate totals for dashboard (filtered by Project.start_date month/year if provided).
-    """
     proj_q = db.session.query(Project.id)
 
     if year:
@@ -488,12 +462,13 @@ class SalesDoc(db.Model, TimestampMixin):
 
     doc_type = db.Column(db.String(10), nullable=False, default="QT")
     doc_no = db.Column(db.String(40), nullable=False, unique=True, index=True)
-    status = db.Column(db.String(20), nullable=False, default="DRAFT")  # DRAFT/APPROVED/VOID
+
+    # ใช้สถานะภาษาไทยเป็นหลัก
+    status = db.Column(db.String(50), nullable=False, default="ฉบับร่าง", index=True)
 
     issue_date = db.Column(db.Date, nullable=False, default=date.today)
     due_date = db.Column(db.Date, nullable=True)
 
-    # Company snapshot
     company_name = db.Column(db.String(200), nullable=True)
     company_tax_id = db.Column(db.String(40), nullable=True)
     company_address = db.Column(db.Text, nullable=True)
@@ -502,7 +477,6 @@ class SalesDoc(db.Model, TimestampMixin):
     company_website = db.Column(db.String(120), nullable=True)
     company_logo_path = db.Column(db.String(255), nullable=True)
 
-    # Customer snapshot
     customer_name = db.Column(db.String(200), nullable=False)
     customer_tax_id = db.Column(db.String(40), nullable=True)
     customer_address = db.Column(db.Text, nullable=True)
@@ -513,7 +487,6 @@ class SalesDoc(db.Model, TimestampMixin):
     description = db.Column(db.Text, nullable=True)
 
     discount_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
-
     vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=7)
     wht_rate = db.Column(db.Numeric(5, 2), nullable=False, default=0)
 
@@ -527,12 +500,49 @@ class SalesDoc(db.Model, TimestampMixin):
     approved_by = db.Column(db.String(120), nullable=True)
     approved_at = db.Column(db.DateTime, nullable=True)
 
+    # parent doc เช่น BL/IV/RC อ้างกลับไปที่ QT
     parent_id = db.Column(db.Integer, db.ForeignKey("sales_docs.id"), nullable=True, index=True)
+
+    # child doc อ้างกลับไปที่งวด
+    installment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sales_installments.id"),
+        nullable=True,
+        index=True,
+    )
 
     boq_excel_path = db.Column(db.String(255), nullable=True)
     boq_pdf_path = db.Column(db.String(255), nullable=True)
 
-    items = db.relationship("SalesItem", backref="doc", cascade="all, delete-orphan", lazy=True)
+    parent = db.relationship(
+        "SalesDoc",
+        remote_side=[id],
+        backref=db.backref("children", lazy=True, order_by="SalesDoc.id"),
+        foreign_keys=[parent_id],
+    )
+
+    installment = db.relationship(
+        "SalesInstallment",
+        foreign_keys=[installment_id],
+        lazy="joined",
+    )
+
+    items = db.relationship(
+        "SalesItem",
+        backref="doc",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="SalesItem.id",
+    )
+
+    installments = db.relationship(
+        "SalesInstallment",
+        foreign_keys="SalesInstallment.quote_id",
+        back_populates="quote_doc",
+        cascade="all, delete-orphan",
+        lazy=True,
+        order_by="SalesInstallment.installment_no",
+    )
 
     @staticmethod
     def _d(v) -> Decimal:
@@ -576,13 +586,30 @@ class SalesDoc(db.Model, TimestampMixin):
 
     @property
     def net_before_tax(self) -> Decimal:
+        """
+        ฐานก่อน VAT / ก่อนหัก ณ ที่จ่าย
+        """
         v = self.subtotal - self.discount_total
         if v < 0:
             v = Decimal("0")
         return self._q2(v)
 
     @property
+    def vat_amount(self) -> Decimal:
+        """
+        VAT คิดจากฐานก่อนภาษีหัก ณ ที่จ่าย
+        """
+        rate = self._d(self.vat_rate)
+        v = (self.net_before_tax * rate) / Decimal("100")
+        if v < 0:
+            v = Decimal("0")
+        return self._q2(v)
+
+    @property
     def wht_amount(self) -> Decimal:
+        """
+        หัก ณ ที่จ่าย คิดจากฐานก่อน VAT
+        """
         rate = self._d(self.wht_rate)
         v = (self.net_before_tax * rate) / Decimal("100")
         if v < 0:
@@ -590,33 +617,42 @@ class SalesDoc(db.Model, TimestampMixin):
         return self._q2(v)
 
     @property
-    def net_after_wht(self) -> Decimal:
-        v = self.net_before_tax - self.wht_amount
-        if v < 0:
-            v = Decimal("0")
-        return self._q2(v)
-
-    @property
-    def vat_amount(self) -> Decimal:
-        rate = self._d(self.vat_rate)
-        v = (self.net_after_wht * rate) / Decimal("100")
-        if v < 0:
-            v = Decimal("0")
-        return self._q2(v)
-
-    @property
     def gross_total(self) -> Decimal:
-        v = self.net_after_wht + self.vat_amount
+        """
+        ยอดรวมก่อนหัก ณ ที่จ่าย = ฐาน + VAT
+        """
+        v = self.net_before_tax + self.vat_amount
+        if v < 0:
+            v = Decimal("0")
+        return self._q2(v)
+
+    @property
+    def net_after_wht(self) -> Decimal:
+        """
+        ยอดสุทธิรับจริง = (ฐาน + VAT) - WHT
+        """
+        v = self.gross_total - self.wht_amount
         if v < 0:
             v = Decimal("0")
         return self._q2(v)
 
     @property
     def grand_total(self) -> Decimal:
-        v = self.gross_total
+        """
+        ใช้เป็นยอดสุดท้ายของเอกสาร
+        """
+        v = self.net_after_wht
         if v < 0:
             v = Decimal("0")
         return self._q2(v)
+
+    @property
+    def is_qt(self) -> bool:
+        return (self.doc_type or "").upper() == "QT"
+
+    @property
+    def has_installments(self) -> bool:
+        return bool(self.installments)
 
     @staticmethod
     def next_doc_no(doc_type: str = "QT") -> str:
@@ -659,21 +695,125 @@ class SalesItem(db.Model, TimestampMixin):
 
 
 # =========================================================
-# ✅ Withholding master data (NEW)
+# Sales installments
+# =========================================================
+class SalesInstallment(db.Model, TimestampMixin):
+    __tablename__ = "sales_installments"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    quote_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sales_docs.id"),
+        nullable=False,
+        index=True,
+    )
+
+    installment_no = db.Column(db.Integer, nullable=False)
+    title = db.Column(db.String(255), nullable=True)
+
+    percent = db.Column(db.Numeric(7, 4), nullable=True, default=0)
+
+    amount_before_tax = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    vat_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    wht_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    gross_total = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    net_total = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+
+    due_date = db.Column(db.Date, nullable=True)
+
+    # สถานะงวดภาษาไทย
+    status = db.Column(db.String(50), nullable=False, default="ยังไม่วางบิล", index=True)
+
+    billed_at = db.Column(db.DateTime, nullable=True)
+    invoiced_at = db.Column(db.DateTime, nullable=True)
+    received_at = db.Column(db.DateTime, nullable=True)
+
+    billing_doc_id = db.Column(db.Integer, db.ForeignKey("sales_docs.id"), nullable=True, index=True)
+    invoice_doc_id = db.Column(db.Integer, db.ForeignKey("sales_docs.id"), nullable=True, index=True)
+    receipt_doc_id = db.Column(db.Integer, db.ForeignKey("sales_docs.id"), nullable=True, index=True)
+
+    remark = db.Column(db.Text, nullable=True)
+
+    quote_doc = db.relationship(
+        "SalesDoc",
+        foreign_keys=[quote_id],
+        back_populates="installments",
+    )
+
+    billing_doc = db.relationship("SalesDoc", foreign_keys=[billing_doc_id], post_update=True)
+    invoice_doc = db.relationship("SalesDoc", foreign_keys=[invoice_doc_id], post_update=True)
+    receipt_doc = db.relationship("SalesDoc", foreign_keys=[receipt_doc_id], post_update=True)
+
+    __table_args__ = (
+        CheckConstraint("installment_no >= 1", name="ck_sales_installment_no_positive"),
+        CheckConstraint("percent >= 0", name="ck_sales_installment_percent_nonneg"),
+        CheckConstraint("amount_before_tax >= 0", name="ck_sales_installment_base_nonneg"),
+        CheckConstraint("vat_amount >= 0", name="ck_sales_installment_vat_nonneg"),
+        CheckConstraint("wht_amount >= 0", name="ck_sales_installment_wht_nonneg"),
+        CheckConstraint("gross_total >= 0", name="ck_sales_installment_gross_nonneg"),
+        CheckConstraint("net_total >= 0", name="ck_sales_installment_net_nonneg"),
+        Index("ix_sales_installments_quote_id", "quote_id"),
+        Index("ix_sales_installments_due_date", "due_date"),
+        Index("ix_sales_installments_status", "status"),
+        Index("ix_sales_installments_billing_doc_id", "billing_doc_id"),
+        Index("ix_sales_installments_invoice_doc_id", "invoice_doc_id"),
+        Index("ix_sales_installments_receipt_doc_id", "receipt_doc_id"),
+        db.UniqueConstraint("quote_id", "installment_no", name="uq_sales_installments_quote_no"),
+    )
+
+    @staticmethod
+    def _d(v) -> Decimal:
+        if v is None:
+            return Decimal("0")
+        try:
+            if isinstance(v, Decimal):
+                return v
+            s = str(v).strip()
+            if s == "":
+                return Decimal("0")
+            return Decimal(s)
+        except Exception:
+            return Decimal("0")
+
+    @staticmethod
+    def _q2(v: Decimal) -> Decimal:
+        try:
+            return v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        except Exception:
+            return v
+
+    @property
+    def total_amount(self) -> Decimal:
+        return self._q2(self._d(self.net_total))
+
+    @property
+    def line_description(self) -> str:
+        quote_no = "-"
+        if self.quote_doc and self.quote_doc.doc_no:
+            quote_no = self.quote_doc.doc_no
+        pct = self._q2(self._d(self.percent))
+        if pct > 0:
+            pct_text = f"{pct.normalize()}%"
+        else:
+            pct_text = "-"
+        return f"ค่างานตามใบเสนอราคา {quote_no} งวดที่ {self.installment_no} ({pct_text})"
+
+    @property
+    def is_locked(self) -> bool:
+        return bool(self.billing_doc_id or self.invoice_doc_id or self.receipt_doc_id)
+
+
+# =========================================================
+# Withholding master data
 # =========================================================
 class WithholdingPerson(db.Model, TimestampMixin):
-    """
-    บุคคลธรรมดา สำหรับเอกสารหักภาษี ณ ที่จ่าย
-    - person_type: EMPLOYEE / SUBCONTRACTOR
-    """
     __tablename__ = "withholding_people"
 
     id = db.Column(db.Integer, primary_key=True)
 
     full_name = db.Column(db.String(200), nullable=False, index=True)
     person_type = db.Column(db.String(30), nullable=False, default="EMPLOYEE", index=True)
-
-    # เลขบัตรประชาชน (บางกรณีอาจใช้เป็น tax_id)
     tax_id = db.Column(db.String(40), nullable=True, index=True)
 
     address = db.Column(db.Text, nullable=True)
@@ -693,10 +833,6 @@ class WithholdingPerson(db.Model, TimestampMixin):
 
 
 class WithholdingEntity(db.Model, TimestampMixin):
-    """
-    นิติบุคคล สำหรับเอกสารหักภาษี ณ ที่จ่าย
-    - สามารถผูกกับ Customer ได้ (customer_id)
-    """
     __tablename__ = "withholding_entities"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -708,7 +844,6 @@ class WithholdingEntity(db.Model, TimestampMixin):
     phone = db.Column(db.String(80), nullable=True)
     note = db.Column(db.Text, nullable=True)
 
-    # link to customer (optional)
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True, index=True)
     customer = db.relationship("Customer", lazy="joined")
 
@@ -728,21 +863,13 @@ class WithholdingEntity(db.Model, TimestampMixin):
 # WITHHOLDING (PND3/PND53)
 # =========================
 class WithholdingCertificate(db.Model, TimestampMixin):
-    """
-    เอกสารหนังสือรับรองหัก ณ ที่จ่าย (เริ่มที่ ภงด 3/53)
-    1 ใบ = 1 รายการ (ตามที่คุณเลือก)
-    """
     __tablename__ = "withholding_certificates"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # PND3 / PND53
     form_type = db.Column(db.String(10), nullable=False, default="PND53", index=True)
-
-    # เลขที่เอกสารภายในระบบ (เช่น WHT53-2026-0001)
     doc_no = db.Column(db.String(40), nullable=False, unique=True, index=True)
 
-    # ผู้ถูกหัก: PERSON / ENTITY
     payee_kind = db.Column(db.String(10), nullable=False, default="PERSON", index=True)
 
     payee_person_id = db.Column(db.Integer, db.ForeignKey("withholding_people.id"), nullable=True, index=True)
@@ -751,22 +878,19 @@ class WithholdingCertificate(db.Model, TimestampMixin):
     payee_person = db.relationship("WithholdingPerson", lazy="joined")
     payee_entity = db.relationship("WithholdingEntity", lazy="joined")
 
-    # Snapshot ผู้จ่ายเงิน (บริษัทเรา) ตอนออกเอกสาร
     payer_name = db.Column(db.String(200), nullable=False, default="บริษัทของฉัน")
     payer_tax_id = db.Column(db.String(40), nullable=True)
     payer_address = db.Column(db.Text, nullable=True)
     payer_branch_no = db.Column(db.String(20), nullable=True, default="00000")
 
-    # รายการจ่ายเงิน (1 รายการต่อใบ)
     payment_date = db.Column(db.Date, nullable=False, default=date.today, index=True)
 
-    # หมวด/ประเภทเงินได้ (ใส่เป็นข้อความก่อน เดี๋ยวค่อยทำเป็นตัวเลือก)
-    income_type = db.Column(db.String(120), nullable=True)   # เช่น "ค่าบริการ" / "ค่าเช่า" / ฯลฯ
-    description = db.Column(db.String(255), nullable=True)   # รายละเอียดเพิ่มเติม
+    income_type = db.Column(db.String(120), nullable=True)
+    description = db.Column(db.String(255), nullable=True)
 
-    base_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)  # ฐานภาษี
-    wht_rate = db.Column(db.Numeric(6, 2), nullable=False, default=3)      # %
-    wht_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)   # ยอดหัก
+    base_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    wht_rate = db.Column(db.Numeric(6, 2), nullable=False, default=3)
+    wht_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
     note = db.Column(db.Text, nullable=True)
 

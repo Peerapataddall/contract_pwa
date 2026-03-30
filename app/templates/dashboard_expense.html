@@ -6,90 +6,478 @@
 {% endblock %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>Dashboard รายจ่าย</h1>
-    <div class="muted">รวม 3 ส่วน: วัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่นๆ (อ้างอิงวันที่บันทึกในระบบ)</div>
-  </div>
-  <div class="actions">
-    <form method="get" action="{{ url_for('pages.dashboard_expense') }}" style="display:flex; gap:8px; align-items:center;">
-      <select class="input" name="year" style="width:120px;">
-        {% for y in years %}
-          <option value="{{ y }}" {{ 'selected' if y==year else '' }}>{{ y }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn-primary" type="submit">ดู</button>
-    </form>
-  </div>
-</div>
+<style>
+  .expensePage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
 
-<div class="grid" style="grid-template-columns: repeat(12, 1fr); gap:14px;">
-  <div class="card" style="grid-column: span 6;">
-    <div class="card__body">
-      <div class="muted">รายจ่ายรวม</div>
-      <div class="kpi">{{ "{:,.2f}".format(total_expense) }}</div>
-      <div class="muted">ปี {{ year }}</div>
+  .dashFilters{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:end;
+    justify-content:space-between;
+  }
+
+  .dashFilters .left{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:end;
+  }
+
+  .filterCard,
+  .chartCard,
+  .summaryCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .filterBox{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px;
+  }
+
+  .heroCard{
+    position:relative;
+    overflow:hidden;
+    border:1px solid var(--line);
+    border-radius:24px;
+    padding:20px;
+    background:
+      radial-gradient(circle at top right, rgba(255,159,64,.14), transparent 26%),
+      radial-gradient(circle at bottom left, rgba(255,210,120,.12), transparent 28%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .heroStats{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:12px;
+    margin-top:16px;
+  }
+
+  .heroMini{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFFFF 0%, #FFF8EE 100%);
+    border-radius:18px;
+    padding:14px;
+  }
+
+  .heroMini .k{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-bottom:6px;
+    font-weight:600;
+  }
+
+  .heroMini .v{
+    font-size:20px;
+    font-weight:800;
+    color:var(--text);
+  }
+
+  .mono{
+    font-variant-numeric:tabular-nums;
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+
+  .contentGrid{
+    display:grid;
+    grid-template-columns:1.45fr .95fr;
+    gap:14px;
+  }
+
+  .chartMeta{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .metricPill{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFDF8 0%, #FFF6E9 100%);
+    border-radius:16px;
+    padding:12px 14px;
+  }
+
+  .metricPill .k{
+    font-size:12px;
+    color:var(--text-soft);
+    font-weight:600;
+  }
+
+  .metricPill .v{
+    font-weight:800;
+    margin-top:6px;
+    color:var(--text);
+  }
+
+  .listClean{
+    display:grid;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .listItem{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:center;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #FFFFFF 0%, #FFF9F1 100%);
+    border-radius:16px;
+    padding:14px;
+  }
+
+  .emptyState{
+    border:1px dashed var(--line-strong);
+    border-radius:18px;
+    padding:18px;
+    text-align:center;
+    color:var(--text-soft);
+    margin-top:12px;
+    background:linear-gradient(180deg, #FFFDF8 0%, #FFF8EE 100%);
+  }
+
+  .summaryGrid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:12px;
+  }
+
+  @media (max-width: 960px){
+    .heroStats{ grid-template-columns:1fr 1fr; }
+    .contentGrid{ grid-template-columns:1fr; }
+    .chartMeta{ grid-template-columns:1fr; }
+    .summaryGrid{ grid-template-columns:1fr 1fr; }
+  }
+
+  @media (max-width: 680px){
+    .heroStats{ grid-template-columns:1fr; }
+    .summaryGrid{ grid-template-columns:1fr; }
+  }
+</style>
+
+<div class="expensePage">
+  <div class="pagehead">
+    <div>
+      <h1>Dashboard รายจ่าย</h1>
+      <div class="muted">รวมวัสดุ + ผู้รับเหมาช่วง + ค่าใช้จ่ายอื่น + เงินเบิกล่วงหน้า</div>
     </div>
   </div>
 
-  <div class="card" style="grid-column: span 6;">
-    <div class="card__body" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">
+  <div class="filterCard">
+    <form method="get" action="{{ url_for('pages.dashboard_expense') }}" class="dashFilters">
+      <div class="left">
+        <div>
+          <label class="label">รูปแบบการดูข้อมูล</label>
+          <select class="input" name="expense_mode" id="expense_mode" onchange="toggleExpenseFilters()">
+            <option value="day" {{ 'selected' if mode == 'day' else '' }}>รายวัน</option>
+            <option value="month" {{ 'selected' if mode == 'month' else '' }}>รายเดือน</option>
+            <option value="year" {{ 'selected' if mode == 'year' else '' }}>รายปี</option>
+            <option value="range" {{ 'selected' if mode == 'range' else '' }}>ช่วงวันที่</option>
+          </select>
+        </div>
+
+        <div id="expense-filter-day" class="filterBox" style="{{ '' if mode == 'day' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">ปี</label>
+              <select class="input" name="expense_year">
+                {% for y in years %}
+                  <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">เดือน</label>
+              <select class="input" name="expense_month">
+                {% for m in range(1,13) %}
+                  <option value="{{ m }}" {{ 'selected' if m == month else '' }}>{{ "%02d"|format(m) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">วัน</label>
+              <select class="input" name="expense_day">
+                {% for d in range(1,32) %}
+                  <option value="{{ d }}" {{ 'selected' if d == day else '' }}>{{ "%02d"|format(d) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="expense-filter-month" class="filterBox" style="{{ '' if mode == 'month' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">ปี</label>
+              <select class="input" name="expense_year">
+                {% for y in years %}
+                  <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="label">เดือน</label>
+              <select class="input" name="expense_month">
+                {% for m in range(1,13) %}
+                  <option value="{{ m }}" {{ 'selected' if m == month else '' }}>{{ "%02d"|format(m) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="expense-filter-year" class="filterBox" style="{{ '' if mode == 'year' else 'display:none;' }}">
+          <div>
+            <label class="label">ปี</label>
+            <select class="input" name="expense_year">
+              {% for y in years %}
+                <option value="{{ y }}" {{ 'selected' if y == year else '' }}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div id="expense-filter-range" class="filterBox" style="{{ '' if mode == 'range' else 'display:none;' }}">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div>
+              <label class="label">วันที่เริ่มต้น</label>
+              <input class="input" type="date" name="expense_start_date" value="{{ start_date or '' }}">
+            </div>
+            <div>
+              <label class="label">วันที่สิ้นสุด</label>
+              <input class="input" type="date" name="expense_end_date" value="{{ end_date or '' }}">
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-funnel-fill"></i>
+            <span>ดูข้อมูล</span>
+          </button>
+        </div>
+      </div>
+    </form>
+
+    <div class="mt-12 muted">
+      ช่วงข้อมูลที่แสดง: <b>{{ period_label }}</b>
+    </div>
+  </div>
+
+  <div class="heroCard">
+    <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+      <div>
+        <div class="muted" style="font-size:12px;">EXPENSE ANALYTICS</div>
+        <h2 style="margin:4px 0 0 0;">ภาพรวมรายจ่ายของระบบ</h2>
+        <div class="muted" style="margin-top:6px;">{{ chart_title }} · {{ bucket_hint }}</div>
+      </div>
+      <div class="muted mono">ช่วงข้อมูล {{ period_label }}</div>
+    </div>
+
+    <div class="heroStats">
+      {% for card in summary_cards %}
+        <div class="heroMini">
+          <div class="k">{{ card.label }}</div>
+          <div class="v mono">
+            {% if card.label == 'จำนวนรายการ' %}
+              {{ card.value }}
+            {% else %}
+              {{ "{:,.2f}".format(card.value or 0) }}
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="contentGrid">
+    <div class="chartCard">
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div>
+          <h2 style="margin:0;">{{ chart_title }}</h2>
+          <div class="muted">{{ bucket_hint }}</div>
+        </div>
+        <div class="muted">รายการในกราฟ: {{ counts | sum }}</div>
+      </div>
+
+      {% if labels and series and (series|sum) > 0 %}
+        <div style="height:360px; margin-top:12px;">
+          <canvas id="expenseChart"></canvas>
+        </div>
+
+        <div class="chartMeta">
+          <div class="metricPill">
+            <div class="k">รายจ่ายรวมในกราฟ</div>
+            <div class="v mono">{{ "{:,.2f}".format((series|sum) or 0) }}</div>
+          </div>
+          <div class="metricPill">
+            <div class="k">ค่าเฉลี่ยต่อช่วง</div>
+            <div class="v mono">{{ "{:,.2f}".format(avg_per_bucket or 0) }}</div>
+          </div>
+          <div class="metricPill">
+            <div class="k">ค่าสูงสุดในกราฟ</div>
+            <div class="v mono">{{ "{:,.2f}".format(max_series_value or 0) }}</div>
+          </div>
+        </div>
+      {% else %}
+        <div class="emptyState">
+          <div style="font-weight:700;">ยังไม่มีข้อมูลรายจ่ายในช่วงที่เลือก</div>
+          <div class="muted" style="margin-top:4px;">ลองเปลี่ยนช่วงวันที่ หรือเพิ่มรายการรายจ่ายในระบบ</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="chartCard">
+      <div>
+        <div class="section-title">สัดส่วนรายจ่ายตามหมวด</div>
+        <div class="muted">เรียงจากมากไปน้อย</div>
+      </div>
+
+      {% if category_rows %}
+        <div class="listClean">
+          {% for row in category_rows %}
+            <div class="listItem">
+              <div style="font-weight:700;">{{ row.label }}</div>
+              <div class="mono" style="font-weight:800;">{{ "{:,.2f}".format(row.value or 0) }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="emptyState">ไม่มีข้อมูลในช่วงที่เลือก</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="summaryCard">
+    <div class="summaryGrid">
+      <div>
+        <div class="muted">รายจ่ายรวม</div>
+        <div style="font-size:24px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_expense) }}</div>
+        <div class="muted">จำนวนรายการ {{ total_rows }} รายการ</div>
+      </div>
       <div>
         <div class="muted">วัสดุ</div>
-        <div class="kpi-sm">{{ "{:,.2f}".format(total_materials) }}</div>
+        <div style="font-size:20px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_materials) }}</div>
       </div>
       <div>
         <div class="muted">ผู้รับเหมาช่วง</div>
-        <div class="kpi-sm">{{ "{:,.2f}".format(total_subs) }}</div>
+        <div style="font-size:20px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format(total_subs) }}</div>
       </div>
       <div>
-        <div class="muted">ค่าใช้จ่ายอื่น</div>
-        <div class="kpi-sm">{{ "{:,.2f}".format(total_other) }}</div>
-      </div>
-      <div class="muted" style="grid-column: 1/-1;">* แยกตามประเภทรายการ (อาจมีการบันทึกย้อนหลังได้)</div>
-    </div>
-  </div>
-
-  <div class="card" style="grid-column: span 12;">
-    <div class="card__body">
-      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-        <div>
-          <h2 style="margin:0;">รายจ่ายรายเดือน</h2>
-          <div class="muted">กราฟรายจ่ายรวม (วัสดุ+ผู้รับเหมาช่วง+อื่นๆ) แยกตามเดือน</div>
-        </div>
-        <div class="muted">รายการ/เดือน: {{ counts | sum }}</div>
-      </div>
-      <div style="height:360px; margin-top:10px;">
-        <canvas id="expenseChart"></canvas>
+        <div class="muted">ค่าใช้จ่ายอื่น + เงินเบิกล่วงหน้า</div>
+        <div style="font-size:20px; font-weight:900; margin-top:4px;" class="mono">{{ "{:,.2f}".format((total_other or 0) + (total_advances or 0)) }}</div>
+        <div class="muted" style="margin-top:6px;">ค่าใช้จ่ายอื่น {{ "{:,.2f}".format(total_other) }} · เบิกล่วงหน้า {{ "{:,.2f}".format(total_advances) }}</div>
       </div>
     </div>
+    <div class="muted" style="margin-top:10px;">* อ้างอิงวันที่จริงของแต่ละรายการ ถ้ามี</div>
   </div>
 </div>
 
 <script>
-  const labels = {{ labels | tojson }};
-  const series = {{ series | tojson }};
+  function toggleExpenseFilters(){
+    const mode = document.getElementById('expense_mode')?.value || 'month';
+    ['expense-filter-day', 'expense-filter-month', 'expense-filter-year', 'expense-filter-range'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    const active = document.getElementById(`expense-filter-${mode}`);
+    if (active) active.style.display = '';
+  }
 
-  const ctx = document.getElementById("expenseChart");
-  new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [{
-        label: "รายจ่ายรวม",
-        data: series,
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: true }
+  document.addEventListener('DOMContentLoaded', () => {
+    toggleExpenseFilters();
+
+    const labels = {{ labels | tojson }};
+    const series = {{ series | tojson }};
+    const counts = {{ counts | tojson }};
+
+    const ctx = document.getElementById("expenseChart");
+    if (!ctx) return;
+
+    new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [{
+          label: "รายจ่ายรวม",
+          data: series,
+          backgroundColor: '#FFB968',
+          borderColor: '#F59E0B',
+          borderWidth: 1.5,
+          borderRadius: 10,
+          maxBarThickness: 48
+        }]
       },
-      scales: {
-        y: { beginAtZero: true }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: true,
+            labels: {
+              color: '#5F7C99',
+              font: { family: 'Prompt' }
+            }
+          },
+          tooltip: {
+            backgroundColor: '#16324F',
+            titleColor: '#FFFFFF',
+            bodyColor: '#FFFFFF',
+            padding: 12,
+            cornerRadius: 12,
+            callbacks: {
+              label: (context) => {
+                const val = Number(context.raw || 0);
+                return 'รายจ่ายรวม: ' + val.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+              },
+              afterBody: (items) => {
+                const i = items?.[0]?.dataIndex ?? 0;
+                return 'จำนวนรายการ: ' + (counts[i] ?? 0);
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#5F7C99',
+              font: { family: 'Prompt' }
+            },
+            grid: { display: false },
+            border: { color: '#D3E2F5' }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: '#5F7C99',
+              font: { family: 'Prompt' },
+              callback: (v) => {
+                try { return Number(v).toLocaleString(); } catch(e){ return v; }
+              }
+            },
+            grid: { color: '#E4EFFB' },
+            border: { color: '#D3E2F5' }
+          }
+        }
       }
-    }
+    });
   });
 </script>
 {% endblock %}

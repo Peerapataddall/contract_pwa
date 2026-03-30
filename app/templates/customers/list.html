@@ -2,70 +2,542 @@
 {% set title = "ลูกค้า" %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>ลูกค้า</h1>
-    <div class="muted">บันทึกรายชื่อลูกค้า เพื่อเลือกใช้งานตอนสร้างใบเสนอราคา (QT)</div>
-  </div>
-  <div class="actions">
-    <a class="btn btn-primary" href="{{ url_for('customers.customers_new') }}">+ เพิ่มลูกค้า</a>
-  </div>
-</div>
+<style>
+  .customersPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
 
-<div class="card">
-  <form method="get" class="grid" style="grid-template-columns:1fr auto; gap:10px; align-items:end;">
-    <label class="field">
-      <span>ค้นหา</span>
-      <input name="q" value="{{ q or '' }}" class="input" placeholder="พิมพ์ชื่อลูกค้า...">
-    </label>
-    <button class="btn" type="submit">ค้นหา</button>
-  </form>
-</div>
+  .customersHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
 
-<div class="card mt-12">
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>ชื่อลูกค้า</th>
-          <th>โทร</th>
-          <th>เลขผู้เสียภาษี</th>
-          <th>สถานะ</th>
-          <th style="width:220px;">จัดการ</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for c in customers %}
-        <tr>
-          <td>
-            <div style="font-weight:700;">{{ c.name }}</div>
-            <div class="muted" style="max-width:480px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-              {{ c.address or '' }}
+  .customersHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
+
+  .customersHero__actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .filterCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .filterForm{
+    display:grid;
+    grid-template-columns: 1fr auto auto;
+    gap:10px;
+    align-items:end;
+  }
+
+  .statsRow{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:14px;
+  }
+
+  .statBadge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    min-height:38px;
+    padding:8px 14px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F5FAFF 0%, #EAF3FF 100%);
+    color:var(--text);
+    font-weight:700;
+    box-shadow:var(--shadow-sm);
+  }
+
+  .statBadge--green{
+    background:linear-gradient(180deg, #ECFFF2 0%, #DDFBE5 100%);
+    border-color:#C1EFD0;
+    color:#15803D;
+  }
+
+  .tableCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .tableTop{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .tableTop__meta{
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .desktop-table{ display:block; }
+  .mobile-cards{ display:none; }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    border-radius:18px;
+  }
+
+  .table{
+    min-width:1020px;
+  }
+
+  .customerName{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .customerName__title{
+    font-weight:800;
+    color:var(--text);
+  }
+
+  .customerName__meta{
+    color:var(--text-soft);
+    font-size:12px;
+  }
+
+  .customerName__address{
+    max-width:480px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    color:var(--text-soft);
+    font-size:12px;
+  }
+
+  .actionCell{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+
+  .inlineForm{
+    display:inline;
+  }
+
+  .statusBadge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    min-height:30px;
+    padding:6px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+    border:1px solid transparent;
+  }
+
+  .statusBadge--active{
+    background:var(--success-soft);
+    color:var(--success);
+    border-color:#BEEFCF;
+  }
+
+  .statusBadge--inactive{
+    background:linear-gradient(180deg, #F8FBFF 0%, #EAF3FF 100%);
+    color:var(--text-soft);
+    border-color:var(--line);
+  }
+
+  .mobile-cards{
+    gap:12px;
+  }
+
+  .mcard{
+    border-radius:20px;
+    padding:16px;
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .mcard__top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+    margin-bottom:12px;
+  }
+
+  .mcard__title{
+    font-size:16px;
+    font-weight:800;
+    color:var(--text);
+  }
+
+  .mcard__meta{
+    margin-top:4px;
+    font-size:13px;
+    color:var(--text-soft);
+    line-height:1.5;
+  }
+
+  .mcard__grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .mcard__stat{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, #F9FCFF 0%, #EEF5FF 100%);
+    border-radius:16px;
+    padding:12px;
+  }
+
+  .mcard__statLabel{
+    font-size:12px;
+    color:var(--text-soft);
+    font-weight:600;
+  }
+
+  .mcard__statValue{
+    margin-top:6px;
+    font-weight:800;
+    color:var(--text);
+    word-break:break-word;
+  }
+
+  .mcard__wide{
+    grid-column:1 / -1;
+  }
+
+  .mcard__actions{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+
+  .mcard__actions .btn{
+    width:100%;
+    justify-content:center;
+  }
+
+  .emptyState{
+    border:1px dashed var(--line-strong);
+    border-radius:18px;
+    padding:22px;
+    text-align:center;
+    color:var(--text-soft);
+    background:linear-gradient(180deg, #F9FCFF 0%, #F3F8FF 100%);
+  }
+
+  @media (max-width: 900px){
+    .filterForm{
+      grid-template-columns:1fr 1fr;
+    }
+
+    .filterForm .btn{
+      grid-column:1 / -1;
+      width:100%;
+    }
+  }
+
+  @media (max-width: 820px){
+    .desktop-table{
+      display:none !important;
+    }
+
+    .mobile-cards{
+      display:grid !important;
+    }
+  }
+
+  @media (max-width: 640px){
+    .mcard__grid{
+      grid-template-columns:1fr;
+    }
+
+    .mcard__wide{
+      grid-column:auto;
+    }
+  }
+
+  @media (min-width: 821px){
+    .mobile-cards{
+      display:none !important;
+    }
+  }
+</style>
+
+<div class="customersPage">
+  <div class="customersHero">
+    <div>
+      <h1>ลูกค้า</h1>
+      <div class="customersHero__sub">บันทึกรายชื่อลูกค้า เพื่อเลือกใช้งานตอนสร้างใบเสนอราคา (QT) และเอกสารที่เกี่ยวข้อง</div>
+    </div>
+
+    <div class="customersHero__actions">
+      <a class="btn btn-primary" href="{{ url_for('customers.customers_new') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>เพิ่มลูกค้า</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="filterCard">
+    <form method="get" class="filterForm">
+      <label class="field">
+        <span>ค้นหา</span>
+        <input name="q" value="{{ q or '' }}" class="input" placeholder="พิมพ์ชื่อ / เบอร์โทร / เลขผู้เสียภาษี / อีเมล">
+      </label>
+
+      <label class="field">
+        <span>สถานะ</span>
+        <select name="status" class="input">
+          <option value="active" {{ 'selected' if status == 'active' else '' }}>ลูกค้าที่ใช้งาน</option>
+          <option value="inactive" {{ 'selected' if status == 'inactive' else '' }}>ลูกค้าที่ปิดการใช้งาน</option>
+          <option value="all" {{ 'selected' if status == 'all' else '' }}>ทั้งหมด</option>
+        </select>
+      </label>
+
+      <button class="btn" type="submit">
+        <i class="bi bi-search"></i>
+        <span>ค้นหา</span>
+      </button>
+    </form>
+
+    <div class="statsRow">
+      <span class="statBadge statBadge--green">
+        <i class="bi bi-person-check-fill"></i>
+        <span>ใช้งานอยู่ {{ active_count or 0 }} ราย</span>
+      </span>
+      <span class="statBadge">
+        <i class="bi bi-person-dash-fill"></i>
+        <span>ปิดการใช้งาน {{ inactive_count or 0 }} ราย</span>
+      </span>
+      <span class="statBadge">
+        <i class="bi bi-people-fill"></i>
+        <span>ทั้งหมด {{ total_count or 0 }} ราย</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="tableCard">
+    <div class="tableTop">
+      <div>
+        <div class="section-title">รายการลูกค้า</div>
+        <div class="tableTop__meta">จัดการข้อมูลลูกค้า แก้ไข หรือปิด/เปิดการใช้งานได้จากหน้านี้</div>
+      </div>
+    </div>
+
+    <div class="table-wrap desktop-table">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ชื่อลูกค้า</th>
+            <th>โทร</th>
+            <th>เลขผู้เสียภาษี</th>
+            <th>สถานะ</th>
+            <th style="width:300px;">จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in customers %}
+          <tr>
+            <td>
+              <div class="customerName">
+                <div class="customerName__title">{{ c.name }}</div>
+
+                {% if c.contact_name or c.email %}
+                <div class="customerName__meta">
+                  {% if c.contact_name %}ผู้ติดต่อ: {{ c.contact_name }}{% endif %}
+                  {% if c.contact_name and c.email %} • {% endif %}
+                  {% if c.email %}{{ c.email }}{% endif %}
+                </div>
+                {% endif %}
+
+                <div class="customerName__address">
+                  {{ c.address or '' }}
+                </div>
+              </div>
+            </td>
+
+            <td>{{ c.phone or '' }}</td>
+            <td>{{ c.tax_id or '' }}</td>
+
+            <td>
+              {% if c.is_active %}
+                <span class="statusBadge statusBadge--active">ใช้งานอยู่</span>
+              {% else %}
+                <span class="statusBadge statusBadge--inactive">ปิดการใช้งาน</span>
+              {% endif %}
+            </td>
+
+            <td>
+              <div class="actionCell">
+                <a class="btn btn-ghost" href="{{ url_for('customers.customers_edit', customer_id=c.id) }}">
+                  <i class="bi bi-pencil-square"></i>
+                  <span>แก้ไข</span>
+                </a>
+
+                {% if c.is_active %}
+                <form
+                  method="post"
+                  action="{{ url_for('customers.customers_delete', customer_id=c.id) }}"
+                  class="inlineForm"
+                  onsubmit="return confirm('ต้องการปิดการใช้งานลูกค้ารายนี้ใช่หรือไม่?');"
+                >
+                  <button class="btn btn-ghost" type="submit">
+                    <i class="bi bi-person-dash"></i>
+                    <span>ปิดการใช้งาน</span>
+                  </button>
+                </form>
+                {% else %}
+                <form
+                  method="post"
+                  action="{{ url_for('customers.customers_restore', customer_id=c.id) }}"
+                  class="inlineForm"
+                  onsubmit="return confirm('ต้องการเปิดใช้งานลูกค้ารายนี้อีกครั้งใช่หรือไม่?');"
+                >
+                  <button class="btn btn-ghost" type="submit">
+                    <i class="bi bi-person-check"></i>
+                    <span>เปิดใช้งานอีกครั้ง</span>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="center" style="padding:22px; color:var(--text-soft);">
+              {% if status == 'inactive' %}
+                ยังไม่มีลูกค้าที่ปิดการใช้งาน
+              {% elif status == 'all' %}
+                ยังไม่มีข้อมูลลูกค้า
+              {% else %}
+                ยังไม่มีลูกค้าที่ใช้งานอยู่
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mobile-cards">
+      {% for c in customers %}
+      <div class="mcard">
+        <div class="mcard__top">
+          <div>
+            <div class="mcard__title">{{ c.name }}</div>
+            {% if c.contact_name or c.email %}
+            <div class="mcard__meta">
+              {% if c.contact_name %}ผู้ติดต่อ: {{ c.contact_name }}{% endif %}
+              {% if c.contact_name and c.email %} • {% endif %}
+              {% if c.email %}{{ c.email }}{% endif %}
             </div>
-          </td>
-          <td>{{ c.phone or '' }}</td>
-          <td>{{ c.tax_id or '' }}</td>
-          <td>
+            {% endif %}
+          </div>
+
+          <div>
             {% if c.is_active %}
-              <span class="badge badge-soft-green">ACTIVE</span>
+              <span class="statusBadge statusBadge--active">ใช้งานอยู่</span>
             {% else %}
-              <span class="badge">INACTIVE</span>
+              <span class="statusBadge statusBadge--inactive">ปิดการใช้งาน</span>
             {% endif %}
-          </td>
-          <td>
-            <a class="btn btn-ghost" href="{{ url_for('customers.customers_edit', customer_id=c.id) }}">แก้ไข</a>
-            {% if c.is_active %}
-            <form method="post" action="{{ url_for('customers.customers_delete', customer_id=c.id) }}" style="display:inline;" onsubmit="return confirm('ปิดการใช้งานลูกค้านี้?');">
-              <button class="btn btn-ghost" type="submit">ปิดใช้งาน</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5" class="muted">ยังไม่มีลูกค้า</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          </div>
+        </div>
+
+        <div class="mcard__grid">
+          <div class="mcard__stat">
+            <div class="mcard__statLabel">โทร</div>
+            <div class="mcard__statValue">{{ c.phone or '-' }}</div>
+          </div>
+
+          <div class="mcard__stat">
+            <div class="mcard__statLabel">เลขผู้เสียภาษี</div>
+            <div class="mcard__statValue">{{ c.tax_id or '-' }}</div>
+          </div>
+
+          <div class="mcard__stat mcard__wide">
+            <div class="mcard__statLabel">ที่อยู่</div>
+            <div class="mcard__statValue">{{ c.address or '-' }}</div>
+          </div>
+        </div>
+
+        <div class="mcard__actions">
+          <a class="btn btn-ghost" href="{{ url_for('customers.customers_edit', customer_id=c.id) }}">
+            <i class="bi bi-pencil-square"></i>
+            <span>แก้ไข</span>
+          </a>
+
+          {% if c.is_active %}
+          <form
+            method="post"
+            action="{{ url_for('customers.customers_delete', customer_id=c.id) }}"
+            onsubmit="return confirm('ต้องการปิดการใช้งานลูกค้ารายนี้ใช่หรือไม่?');"
+          >
+            <button class="btn btn-ghost" type="submit" style="width:100%;">
+              <i class="bi bi-person-dash"></i>
+              <span>ปิดการใช้งาน</span>
+            </button>
+          </form>
+          {% else %}
+          <form
+            method="post"
+            action="{{ url_for('customers.customers_restore', customer_id=c.id) }}"
+            onsubmit="return confirm('ต้องการเปิดใช้งานลูกค้ารายนี้อีกครั้งใช่หรือไม่?');"
+          >
+            <button class="btn btn-ghost" type="submit" style="width:100%;">
+              <i class="bi bi-person-check"></i>
+              <span>เปิดใช้งานอีกครั้ง</span>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if not customers %}
+        <div class="emptyState">
+          {% if status == 'inactive' %}
+            ยังไม่มีลูกค้าที่ปิดการใช้งาน
+          {% elif status == 'all' %}
+            ยังไม่มีข้อมูลลูกค้า
+          {% else %}
+            ยังไม่มีลูกค้าที่ใช้งานอยู่
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

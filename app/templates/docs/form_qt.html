@@ -2,211 +2,517 @@
 {% set title = "สร้างใบเสนอราคา" %}
 
 {% block content %}
-<div class="pagehead">
-  <div>
-    <h1>สร้างใบเสนอราคา (QT)</h1>
-    <div class="muted">เลขเอกสารอัตโนมัติ + รายการเป็นข้อความล้วน</div>
-  </div>
-  <div class="actions">
-    <a class="btn btn-ghost" href="{{ url_for('docs.docs_list') }}">กลับ</a>
-  </div>
-</div>
-
-<div class="card">
-  {# ✅ สำคัญ: ต้องมี enctype เพื่ออัปโหลดไฟล์ #}
-  <form method="post" class="form" enctype="multipart/form-data">
-    <div class="grid grid-2">
-      <label class="field">
-        <span>เลขเอกสาร</span>
-        <input name="doc_no" value="{{ doc_no }}" class="input">
-      </label>
-
-      <label class="field">
-        <span>วันที่ออกเอกสาร</span>
-        <input value="{{ today }}" class="input" disabled>
-      </label>
-
-      
-      <input type="hidden" name="customer_id" id="customer_id" value="">
-      <label class="field" style="grid-column:1/-1; position:relative;">
-        <span>ค้นหาลูกค้า (พิมพ์ชื่อแล้วเลือก)</span>
-        <input id="customer_search" class="input" placeholder="พิมพ์ชื่อ เช่น บริษัท... / คุณ..." autocomplete="off">
-        <div id="customer_suggest" class="suggest" style="display:none;"></div>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>ชื่อลูกค้า *</span>
-        <input name="customer_name" id="customer_name" class="input" required>
-      </label>
-
-
-      <label class="field">
-        <span>เลขผู้เสียภาษีลูกค้า</span>
-        <input name="customer_tax_id" class="input">
-      </label>
-
-      <label class="field">
-        <span>โทรศัพท์ลูกค้า</span>
-        <input name="customer_phone" class="input">
-      </label>
-
-      <label class="field">
-        <span>อีเมลลูกค้า</span>
-        <input name="customer_email" class="input">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>ที่อยู่ลูกค้า</span>
-        <textarea name="customer_address" rows="3"></textarea>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>หัวเรื่อง</span>
-        <input name="subject" class="input" placeholder="เช่น งานติดตั้ง / งานรีโนเวท / งานระบบไฟฟ้า">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>รายละเอียดงาน</span>
-        <textarea name="description" rows="3"></textarea>
-      </label>
-    </div>
-
-    {# ---------------------------------------------------------
-       ✅ แนบไฟล์ BOQ (Excel / PDF) - ไม่กระทบหน้า print
-       - ฝั่ง backend จะรับ request.files['boq_excel'], ['boq_pdf']
-       - ไม่แสดงชื่อไฟล์ในเอกสารพิมพ์ (เราไม่ได้เอาไปโชว์ที่ print)
-       --------------------------------------------------------- #}
-    <div class="mt-12">
-      <div class="section-head">
-        <div class="section-title">แนบไฟล์ BOQ (ไม่บังคับ)</div>
-        <div class="muted">แนบเพื่ออ้างอิงภายในระบบ (ไม่แสดงในเอกสารพิมพ์)</div>
-      </div>
-
-      <div class="grid grid-2">
-        <label class="field">
-          <span>BOQ (Excel)</span>
-          <input class="input" type="file" name="boq_excel" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-          <div class="muted" style="margin-top:6px;">รองรับ .xls / .xlsx</div>
-        </label>
-
-        <label class="field">
-          <span>BOQ (PDF)</span>
-          <input class="input" type="file" name="boq_pdf" accept=".pdf,application/pdf">
-          <div class="muted" style="margin-top:6px;">รองรับ .pdf</div>
-        </label>
-      </div>
-    </div>
-
-    <div class="mt-12">
-      <div class="section-head">
-        <div class="section-title">รายการ</div>
-        <div class="muted">กรอกอย่างน้อย 1 รายการ</div>
-      </div>
-
-      <div class="table-wrap">
-        <table class="table" id="itemsTable">
-          <thead>
-            <tr>
-              <th>รายละเอียด</th>
-              <th style="width:120px;" class="right">จำนวน</th>
-              <th style="width:160px;" class="right">ราคาต่อหน่วย</th>
-              <th style="width:140px;" class="right">ส่วนลด</th>
-              <th style="width:90px;" class="center">ลบ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for it in items %}
-            <tr>
-              <td><input class="input" name="item_description" value="{{ it.description }}"></td>
-              <td><input class="input right" name="item_qty" value="{{ it.qty }}"></td>
-              <td><input class="input right" name="item_unit_price" value="{{ it.unit_price }}"></td>
-              <td><input class="input right" name="item_discount_amount" value="{{ it.discount_amount }}"></td>
-              <td class="center"><button class="row-btn" type="button" onclick="removeRow(this)">✖</button></td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="actions mt-12">
-        <button class="btn btn-small" type="button" onclick="addRow()">+ เพิ่มรายการ</button>
-      </div>
-    </div>
-
-    <div class="mt-12 grid grid-3">
-      <label class="field">
-        <span>ส่วนลดท้ายบิล</span>
-        <input name="discount_amount" class="input right" value="0">
-      </label>
-      <label class="field">
-        <span>VAT (%)</span>
-        <input name="vat_rate" class="input right" value="7">
-      </label>
-      <label class="field">
-        <span>หัก ณ ที่จ่าย (%)</span>
-        <input name="wht_rate" class="input right" value="0">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>เงื่อนไขเงินประกัน</span>
-        <textarea name="deposit_note" rows="2"></textarea>
-      </label>
-
-      <label class="field">
-        <span>ระยะเวลารับประกัน (เดือน)</span>
-        <input name="warranty_months" class="input" placeholder="เช่น 12">
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>เงื่อนไขการชำระเงิน</span>
-        <textarea name="payment_terms" rows="2"></textarea>
-      </label>
-
-      <label class="field" style="grid-column:1/-1;">
-        <span>หมายเหตุ</span>
-        <textarea name="note" rows="2"></textarea>
-      </label>
-    </div>
-
-    <div class="actions mt-12">
-      <button class="btn btn-primary" type="submit">บันทึกใบเสนอราคา</button>
-      <a class="btn btn-ghost" href="{{ url_for('docs.docs_list') }}">ยกเลิก</a>
-    </div>
-  </form>
-</div>
-
 <style>
+  .docFormPage{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+
+  .formHero{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:24px;
+    background:
+      radial-gradient(circle at top right, rgba(59,130,246,.10), transparent 24%),
+      radial-gradient(circle at bottom left, rgba(109,124,255,.08), transparent 26%),
+      linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .formHero__sub{
+    margin-top:6px;
+    color:var(--text-soft);
+  }
+
+  .formHero__actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .sectionCard{
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    border:1px solid var(--line);
+    border-radius:22px;
+    box-shadow:var(--shadow-sm);
+    padding:18px;
+  }
+
+  .sectionHeader{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+
+  .sectionHeader__sub{
+    margin-top:4px;
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .fieldGrid{
+    display:grid;
+    gap:14px;
+  }
+
+  .fieldGrid-2{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .fieldGrid-3{
+    grid-template-columns:repeat(3, 1fr);
+  }
+
+  .fieldGrid-4{
+    grid-template-columns:1.1fr .8fr .9fr 1.2fr;
+  }
+
+  .fullCol{
+    grid-column:1 / -1;
+  }
+
+  .tablePanel{
+    border:1px solid var(--line);
+    border-radius:18px;
+    overflow:hidden;
+    background:#FFFFFF;
+  }
+
+  .table-wrap{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  .table{
+    min-width:980px;
+  }
+
+  .table thead th{
+    background:#F5FAFF;
+  }
+
+  .searchSelectWrap{
+    position:relative;
+  }
+
   .suggest{
     position:absolute;
-    left:0; right:0;
-    top: calc(100% + 6px);
-    background: rgba(20, 26, 38, .98);
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 14px;
-    box-shadow: 0 18px 50px rgba(0,0,0,.25);
-    overflow: hidden;
-    z-index: 50;
+    left:0;
+    right:0;
+    top:calc(100% + 6px);
+    background:#FFFFFF;
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow-md);
+    overflow:hidden;
+    z-index:50;
   }
+
   .suggest button{
     display:block;
     width:100%;
     text-align:left;
-    padding:10px 12px;
-    background: transparent;
+    padding:12px 14px;
+    background:transparent;
     border:0;
-    color: #e6eefc;
+    color:var(--text);
     cursor:pointer;
   }
+
   .suggest button:hover{
-    background: rgba(255,255,255,.06);
+    background:#F5FAFF;
   }
+
   .suggest .muted{
     display:block;
     font-size:12px;
-    opacity:.75;
-    margin-top:2px;
+    margin-top:3px;
+    color:var(--text-soft);
+  }
+
+  .footerActionBar{
+    position:sticky;
+    bottom:16px;
+    z-index:15;
+    background:rgba(246,250,255,.88);
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    border:1px solid var(--line);
+    border-radius:24px;
+    box-shadow:var(--shadow-md);
+    padding:16px 18px;
+  }
+
+  .footerActionBar__inner{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+
+  .footerActionBar__note{
+    color:var(--text-soft);
+    font-size:13px;
+  }
+
+  .footerActionBar__actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .row-btn{
+    min-height:36px;
+    padding:8px 10px;
+    border-radius:12px;
+    border:1px solid var(--line);
+    background:#FFFFFF;
+    cursor:pointer;
+  }
+
+  .installmentRow{
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:14px;
+    background:linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow:var(--shadow-sm);
+  }
+
+  .installmentToolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-bottom:12px;
+  }
+
+  .installmentIndex{
+    font-size:13px;
+    font-weight:800;
+    color:var(--text);
+  }
+
+  .hintInline{
+    font-size:12px;
+    color:var(--text-soft);
+    margin-top:6px;
+  }
+
+  @media (max-width: 980px){
+    .fieldGrid-3{
+      grid-template-columns:1fr;
+    }
+
+    .fieldGrid-4{
+      grid-template-columns:1fr;
+    }
+  }
+
+  @media (max-width: 820px){
+    .fieldGrid-2{
+      grid-template-columns:1fr;
+    }
+
+    .footerActionBar{
+      bottom:10px;
+    }
+
+    .footerActionBar__inner{
+      align-items:flex-start;
+    }
+
+    .footerActionBar__actions{
+      width:100%;
+      justify-content:stretch;
+    }
+
+    .footerActionBar__actions .btn{
+      width:100%;
+    }
   }
 </style>
+
+<div class="docFormPage">
+  <div class="formHero">
+    <div>
+      <h1>สร้างใบเสนอราคา (QT)</h1>
+      <div class="formHero__sub">เลขเอกสารอัตโนมัติ พร้อมแนบ BOQ และกำหนดแผนงวดชำระตามเปอร์เซ็นต์</div>
+    </div>
+
+    <div class="formHero__actions">
+      <a class="btn btn-ghost" href="{{ url_for('docs.docs_list') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>กลับ</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="sectionCard">
+    <div class="sectionHeader">
+      <div>
+        <div class="section-title">ข้อมูลเอกสาร</div>
+        <div class="sectionHeader__sub">กำหนดข้อมูลพื้นฐานของใบเสนอราคาและเลือกลูกค้าที่ต้องการใช้งาน</div>
+      </div>
+    </div>
+
+    <form method="post" class="form" enctype="multipart/form-data">
+      <div class="fieldGrid fieldGrid-2">
+        <label class="field">
+          <span>เลขเอกสาร</span>
+          <input name="doc_no" value="{{ doc_no }}" class="input">
+        </label>
+
+        <label class="field">
+          <span>วันที่ออกเอกสาร</span>
+          <input value="{{ today }}" class="input" disabled>
+        </label>
+
+        <label class="field">
+          <span>กำหนดชำระ (รวม)</span>
+          <input type="date" name="due_date" class="input">
+        </label>
+
+        <div></div>
+
+        <input type="hidden" name="customer_id" id="customer_id" value="">
+
+        <label class="field fullCol searchSelectWrap">
+          <span>ค้นหาลูกค้า (พิมพ์ชื่อแล้วเลือก)</span>
+          <input id="customer_search" class="input" placeholder="พิมพ์ชื่อ เช่น บริษัท... / คุณ..." autocomplete="off">
+          <div id="customer_suggest" class="suggest" style="display:none;"></div>
+        </label>
+
+        <label class="field fullCol">
+          <span>ชื่อลูกค้า *</span>
+          <input name="customer_name" id="customer_name" class="input" required>
+        </label>
+
+        <label class="field">
+          <span>เลขผู้เสียภาษีลูกค้า</span>
+          <input name="customer_tax_id" class="input">
+        </label>
+
+        <label class="field">
+          <span>โทรศัพท์ลูกค้า</span>
+          <input name="customer_phone" class="input">
+        </label>
+
+        <label class="field">
+          <span>อีเมลลูกค้า</span>
+          <input name="customer_email" class="input">
+        </label>
+
+        <label class="field fullCol">
+          <span>ที่อยู่ลูกค้า</span>
+          <textarea name="customer_address" class="input" rows="3"></textarea>
+        </label>
+
+        <label class="field fullCol">
+          <span>หัวเรื่อง</span>
+          <input name="subject" class="input" placeholder="เช่น งานติดตั้ง / งานรีโนเวท / งานระบบไฟฟ้า">
+        </label>
+
+        <label class="field fullCol">
+          <span>รายละเอียดงาน</span>
+          <textarea name="description" class="input" rows="3"></textarea>
+        </label>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">แนบไฟล์ BOQ (ไม่บังคับ)</div>
+            <div class="sectionHeader__sub">แนบเพื่ออ้างอิงภายในระบบ และไม่แสดงในเอกสารพิมพ์</div>
+          </div>
+        </div>
+
+        <div class="fieldGrid fieldGrid-2">
+          <label class="field">
+            <span>BOQ (Excel)</span>
+            <input class="input" type="file" name="boq_excel" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <div class="hint">รองรับ .xls / .xlsx</div>
+          </label>
+
+          <label class="field">
+            <span>BOQ (PDF)</span>
+            <input class="input" type="file" name="boq_pdf" accept=".pdf,application/pdf">
+            <div class="hint">รองรับ .pdf</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">รายการ</div>
+            <div class="sectionHeader__sub">กรอกอย่างน้อย 1 รายการ</div>
+          </div>
+
+          <button class="btn btn-small" type="button" onclick="addRow()">
+            <i class="bi bi-plus-lg"></i>
+            <span>เพิ่มรายการ</span>
+          </button>
+        </div>
+
+        <div class="tablePanel">
+          <div class="table-wrap">
+            <table class="table" id="itemsTable">
+              <thead>
+                <tr>
+                  <th>รายละเอียด</th>
+                  <th style="width:120px;" class="right">จำนวน</th>
+                  <th style="width:160px;" class="right">ราคาต่อหน่วย</th>
+                  <th style="width:140px;" class="right">ส่วนลด</th>
+                  <th style="width:90px;" class="center">ลบ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for it in items %}
+                <tr>
+                  <td><input class="input" name="item_description" value="{{ it.description }}"></td>
+                  <td><input class="input right" name="item_qty" value="{{ it.qty }}"></td>
+                  <td><input class="input right" name="item_unit_price" value="{{ it.unit_price }}"></td>
+                  <td><input class="input right" name="item_discount_amount" value="{{ it.discount_amount }}"></td>
+                  <td class="center"><button class="row-btn" type="button" onclick="removeRow(this)">✖</button></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">เงื่อนไขราคาและข้อมูลเพิ่มเติม</div>
+            <div class="sectionHeader__sub">กำหนดส่วนลด VAT หัก ณ ที่จ่าย และเงื่อนไขประกอบเอกสาร</div>
+          </div>
+        </div>
+
+        <div class="fieldGrid fieldGrid-3">
+          <label class="field">
+            <span>ส่วนลดท้ายบิล</span>
+            <input name="discount_amount" class="input right" value="0">
+          </label>
+
+          <label class="field">
+            <span>VAT (%)</span>
+            <input name="vat_rate" class="input right" value="7">
+          </label>
+
+          <label class="field">
+            <span>หัก ณ ที่จ่าย (%)</span>
+            <input name="wht_rate" class="input right" value="0">
+          </label>
+
+          <label class="field fullCol">
+            <span>เงื่อนไขเงินประกัน</span>
+            <textarea name="deposit_note" class="input" rows="2"></textarea>
+          </label>
+
+          <label class="field">
+            <span>ระยะเวลารับประกัน (เดือน)</span>
+            <input name="warranty_months" class="input" placeholder="เช่น 12">
+          </label>
+
+          <label class="field fullCol">
+            <span>เงื่อนไขการชำระเงิน</span>
+            <textarea name="payment_terms" class="input" rows="2"></textarea>
+          </label>
+
+          <label class="field fullCol">
+            <span>หมายเหตุ</span>
+            <textarea name="note" class="input" rows="2"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="sectionCard" style="margin-top:16px;">
+        <div class="sectionHeader">
+          <div>
+            <div class="section-title">แผนงวดชำระ</div>
+            <div class="sectionHeader__sub">กำหนดเปอร์เซ็นต์ของแต่ละงวด โดยผลรวมต้องเท่ากับ 100%</div>
+          </div>
+
+          <button class="btn btn-small" type="button" onclick="addInstallmentRow()">
+            <i class="bi bi-plus-lg"></i>
+            <span>เพิ่มงวด</span>
+          </button>
+        </div>
+
+        <div id="installmentsWrap">
+          {% for row in installments %}
+          <div class="installmentRow">
+            <div class="installmentToolbar">
+              <div class="installmentIndex">งวดที่ <span class="js-installment-no">{{ loop.index }}</span></div>
+              <button class="row-btn" type="button" onclick="removeInstallmentRow(this)">ลบงวด</button>
+            </div>
+
+            <div class="fieldGrid fieldGrid-4">
+              <label class="field">
+                <span>ชื่องวด</span>
+                <input class="input" name="installment_title" value="{{ row.title or ('งวดที่ ' ~ loop.index) }}">
+              </label>
+
+              <label class="field">
+                <span>เปอร์เซ็นต์ (%)</span>
+                <input class="input right js-installment-percent" name="installment_percent" value="{{ row.percent or '' }}">
+              </label>
+
+              <label class="field">
+                <span>ครบกำหนด</span>
+                <input type="date" class="input" name="installment_due_date" value="{{ row.due_date or '' }}">
+              </label>
+
+              <label class="field">
+                <span>หมายเหตุ</span>
+                <input class="input" name="installment_remark" value="{{ row.remark or '' }}">
+              </label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="hintInline">
+          ผลรวมเปอร์เซ็นต์ทั้งหมด: <b id="installmentPercentSum">0.00%</b>
+        </div>
+      </div>
+
+      <div class="footerActionBar">
+        <div class="footerActionBar__inner">
+          <div class="footerActionBar__note">
+            บันทึกใบเสนอราคาแล้ว คุณสามารถกลับมาเปิดดู แก้ไข หรือสร้างเอกสาร BL / IV / RC จากแต่ละงวดได้
+          </div>
+
+          <div class="footerActionBar__actions">
+            <a class="btn btn-ghost" href="{{ url_for('docs.docs_list') }}">
+              <i class="bi bi-x-circle"></i>
+              <span>ยกเลิก</span>
+            </a>
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-check2-circle"></i>
+              <span>บันทึกใบเสนอราคา</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script>
 (function(){
@@ -222,8 +528,14 @@
 
   let t = null;
 
-  function hideBox(){ $box.style.display = 'none'; $box.innerHTML=''; }
-  function showBox(){ $box.style.display = 'block'; }
+  function hideBox(){
+    $box.style.display = 'none';
+    $box.innerHTML = '';
+  }
+
+  function showBox(){
+    $box.style.display = 'block';
+  }
 
   async function searchCustomers(q){
     const url = `/api/customers/search?q=${encodeURIComponent(q)}&limit=12`;
@@ -232,28 +544,43 @@
     return await res.json();
   }
 
+  function escapeHtml(s){
+    return (s || '').replace(/[&<>"']/g, (m)=>({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      "\"":"&quot;",
+      "'":"&#39;"
+    }[m]));
+  }
+
   function render(items){
-    if(!items || !items.length){ hideBox(); return; }
+    if(!items || !items.length){
+      hideBox();
+      return;
+    }
+
     $box.innerHTML = items.map(c => {
       const sub = [
         c.phone ? `โทร: ${c.phone}` : '',
         c.tax_id ? `TAX: ${c.tax_id}` : ''
       ].filter(Boolean).join(' • ');
+
       return `<button type="button" data-id="${c.id}">
         <strong>${escapeHtml(c.name)}</strong>
         ${sub ? `<span class="muted">${escapeHtml(sub)}</span>` : ''}
       </button>`;
     }).join('');
-    showBox();
-  }
 
-  function escapeHtml(s){
-    return (s||'').replace(/[&<>"']/g, (m)=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
+    showBox();
   }
 
   async function handleInput(){
     const q = ($search.value || '').trim();
-    if(q.length < 1){ hideBox(); return; }
+    if(q.length < 1){
+      hideBox();
+      return;
+    }
     const items = await searchCustomers(q);
     render(items);
   }
@@ -263,13 +590,13 @@
     t = setTimeout(handleInput, 200);
   });
 
-  $box?.addEventListener('click', async (e)=>{
+  $box?.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-id]');
     if(!btn) return;
+
     const id = btn.getAttribute('data-id');
     $cid.value = id;
 
-    // เติมข้อมูลจาก API
     const res = await fetch(`/api/customers/${id}`, {headers:{'Accept':'application/json'}});
     if(res.ok){
       const c = await res.json();
@@ -280,18 +607,17 @@
       if($email) $email.value = c.email || '';
       if($addr) $addr.value = c.address || '';
     }
+
     hideBox();
   });
 
-  document.addEventListener('click', (e)=>{
+  document.addEventListener('click', (e) => {
     if(e.target.closest('#customer_suggest')) return;
     if(e.target.closest('#customer_search')) return;
     hideBox();
   });
-
 })();
 </script>
-
 {% endblock %}
 
 {% block scripts %}
@@ -308,127 +634,119 @@ function addRow(){
   `;
   tbody.appendChild(tr);
 }
+
 function removeRow(btn){
   const tr = btn.closest("tr");
   if(tr) tr.remove();
+
+  const tbody = document.querySelector("#itemsTable tbody");
+  if (tbody && tbody.querySelectorAll("tr").length === 0) {
+    addRow();
+  }
 }
-</script>
 
-<style>
-  .suggest{
-    position:absolute;
-    left:0; right:0;
-    top: calc(100% + 6px);
-    background: rgba(20, 26, 38, .98);
-    border: 1px solid rgba(255,255,255,.10);
-    border-radius: 14px;
-    box-shadow: 0 18px 50px rgba(0,0,0,.25);
-    overflow: hidden;
-    z-index: 50;
-  }
-  .suggest button{
-    display:block;
-    width:100%;
-    text-align:left;
-    padding:10px 12px;
-    background: transparent;
-    border:0;
-    color: #e6eefc;
-    cursor:pointer;
-  }
-  .suggest button:hover{
-    background: rgba(255,255,255,.06);
-  }
-  .suggest .muted{
-    display:block;
-    font-size:12px;
-    opacity:.75;
-    margin-top:2px;
-  }
-</style>
+function renumberInstallments(){
+  const rows = document.querySelectorAll('#installmentsWrap .installmentRow');
+  rows.forEach((row, index) => {
+    const no = index + 1;
+    const label = row.querySelector('.js-installment-no');
+    if (label) label.textContent = no;
 
-<script>
-(function(){
-  const $search = document.getElementById('customer_search');
-  const $box = document.getElementById('customer_suggest');
-  const $cid = document.getElementById('customer_id');
-
-  const $name = document.getElementById('customer_name');
-  const $tax = document.querySelector('[name="customer_tax_id"]');
-  const $phone = document.querySelector('[name="customer_phone"]');
-  const $email = document.querySelector('[name="customer_email"]');
-  const $addr = document.querySelector('[name="customer_address"]');
-
-  let t = null;
-
-  function hideBox(){ $box.style.display = 'none'; $box.innerHTML=''; }
-  function showBox(){ $box.style.display = 'block'; }
-
-  async function searchCustomers(q){
-    const url = `/api/customers/search?q=${encodeURIComponent(q)}&limit=12`;
-    const res = await fetch(url, {headers: {'Accept':'application/json'}});
-    if(!res.ok) return [];
-    return await res.json();
-  }
-
-  function render(items){
-    if(!items || !items.length){ hideBox(); return; }
-    $box.innerHTML = items.map(c => {
-      const sub = [
-        c.phone ? `โทร: ${c.phone}` : '',
-        c.tax_id ? `TAX: ${c.tax_id}` : ''
-      ].filter(Boolean).join(' • ');
-      return `<button type="button" data-id="${c.id}">
-        <strong>${escapeHtml(c.name)}</strong>
-        ${sub ? `<span class="muted">${escapeHtml(sub)}</span>` : ''}
-      </button>`;
-    }).join('');
-    showBox();
-  }
-
-  function escapeHtml(s){
-    return (s||'').replace(/[&<>"']/g, (m)=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[m]));
-  }
-
-  async function handleInput(){
-    const q = ($search.value || '').trim();
-    if(q.length < 1){ hideBox(); return; }
-    const items = await searchCustomers(q);
-    render(items);
-  }
-
-  $search?.addEventListener('input', () => {
-    clearTimeout(t);
-    t = setTimeout(handleInput, 200);
-  });
-
-  $box?.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('button[data-id]');
-    if(!btn) return;
-    const id = btn.getAttribute('data-id');
-    $cid.value = id;
-
-    // เติมข้อมูลจาก API
-    const res = await fetch(`/api/customers/${id}`, {headers:{'Accept':'application/json'}});
-    if(res.ok){
-      const c = await res.json();
-      $search.value = c.name || '';
-      if($name) $name.value = c.name || '';
-      if($tax) $tax.value = c.tax_id || '';
-      if($phone) $phone.value = c.phone || '';
-      if($email) $email.value = c.email || '';
-      if($addr) $addr.value = c.address || '';
+    const titleInput = row.querySelector('input[name="installment_title"]');
+    if (titleInput && !titleInput.dataset.touched) {
+      titleInput.value = `งวดที่ ${no}`;
     }
-    hideBox();
   });
+}
 
-  document.addEventListener('click', (e)=>{
-    if(e.target.closest('#customer_suggest')) return;
-    if(e.target.closest('#customer_search')) return;
-    hideBox();
+function formatPercentSum(sum){
+  return `${sum.toFixed(2)}%`;
+}
+
+function recalcInstallmentPercent(){
+  const inputs = document.querySelectorAll('.js-installment-percent');
+  let sum = 0;
+  inputs.forEach(inp => {
+    const v = parseFloat((inp.value || '0').toString().replace(/,/g,'')) || 0;
+    sum += v;
   });
+  const box = document.getElementById('installmentPercentSum');
+  if (box) {
+    box.textContent = formatPercentSum(sum);
+    box.style.color = Math.abs(sum - 100) < 0.0001 ? 'var(--success)' : 'var(--danger, #B42318)';
+  }
+}
 
-})();
+function bindInstallmentRow(row){
+  const titleInput = row.querySelector('input[name="installment_title"]');
+  if (titleInput) {
+    titleInput.addEventListener('input', () => {
+      titleInput.dataset.touched = titleInput.value.trim() ? '1' : '';
+    });
+  }
+
+  const pct = row.querySelector('.js-installment-percent');
+  if (pct) {
+    pct.addEventListener('input', recalcInstallmentPercent);
+  }
+}
+
+function addInstallmentRow(){
+  const wrap = document.getElementById('installmentsWrap');
+  const div = document.createElement('div');
+  div.className = 'installmentRow';
+  div.innerHTML = `
+    <div class="installmentToolbar">
+      <div class="installmentIndex">งวดที่ <span class="js-installment-no">1</span></div>
+      <button class="row-btn" type="button" onclick="removeInstallmentRow(this)">ลบงวด</button>
+    </div>
+
+    <div class="fieldGrid fieldGrid-4">
+      <label class="field">
+        <span>ชื่องวด</span>
+        <input class="input" name="installment_title" value="">
+      </label>
+
+      <label class="field">
+        <span>เปอร์เซ็นต์ (%)</span>
+        <input class="input right js-installment-percent" name="installment_percent" value="0">
+      </label>
+
+      <label class="field">
+        <span>ครบกำหนด</span>
+        <input type="date" class="input" name="installment_due_date" value="">
+      </label>
+
+      <label class="field">
+        <span>หมายเหตุ</span>
+        <input class="input" name="installment_remark" value="">
+      </label>
+    </div>
+  `;
+  wrap.appendChild(div);
+  bindInstallmentRow(div);
+  renumberInstallments();
+  recalcInstallmentPercent();
+}
+
+function removeInstallmentRow(btn){
+  const row = btn.closest('.installmentRow');
+  if (row) row.remove();
+
+  const rows = document.querySelectorAll('#installmentsWrap .installmentRow');
+  if (!rows.length) {
+    addInstallmentRow();
+    return;
+  }
+
+  renumberInstallments();
+  recalcInstallmentPercent();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#installmentsWrap .installmentRow').forEach(bindInstallmentRow);
+  renumberInstallments();
+  recalcInstallmentPercent();
+});
 </script>
-
 {% endblock %}

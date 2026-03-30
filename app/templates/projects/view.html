@@ -1,10 +1,9 @@
-{% extends 'base.html' %} 
+{% extends 'base.html' %}
 {% set title = 'ดูโครงการ' %}
 
 {% block content %}
 
 <style>
-  /* ===== Mobile-first ===== */
   .stickyTotals{
     position: sticky;
     top: 0;
@@ -29,11 +28,8 @@
   .kpi .k{ font-size: 12px; opacity: .75; }
   .kpi .v{ font-size: 18px; font-weight: 800; margin-top: 2px; }
   .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-  /* ✅ KPI wide */
   .kpi-wide{ grid-column: 1 / -1; }
 
-  /* ===== Voucher Toolbar (จัดระเบียบใหม่) ===== */
   .voucherBar{
     margin-top: 14px;
     border: 1px solid rgba(255,255,255,.08);
@@ -98,8 +94,6 @@
     border-radius: 14px;
     background: rgba(255,255,255,.03);
   }
-  .miniCard .k{ font-size: 12px; opacity: .7; }
-  .miniCard .v{ font-size: 22px; font-weight: 900; margin-top: 2px; }
 
   .table-wrap{ overflow:auto; border-radius: 14px; border:1px solid rgba(255,255,255,.08); }
   table.table{ width:100%; border-collapse: collapse; }
@@ -122,7 +116,6 @@
     .only-desktop{ display:block; }
   }
 
-  /* ===== BOQ Card ===== */
   .boqCard{
     margin-top: 14px;
     border: 1px solid rgba(255,255,255,.08);
@@ -149,7 +142,6 @@
     line-height: 1.35;
   }
 
-  /* small helper */
   .infoRow{
     margin-top: 8px;
     display:flex;
@@ -170,9 +162,6 @@
   }
 </style>
 
-{# ==========================
-   Totals fallback (ถ้า pages.py ยังไม่ส่ง advances_total มา)
-   ========================== #}
 {% set adv_total = advances_total if advances_total is defined else (project.total_advance_expense if project.total_advance_expense is defined else 0) %}
 {% set mats_total = materials_total if materials_total is defined else (project.total_material_cost if project.total_material_cost is defined else 0) %}
 {% set subs_total_ = subs_total if subs_total is defined else (project.total_subcontractor_cost if project.total_subcontractor_cost is defined else 0) %}
@@ -189,15 +178,12 @@
     </div>
 
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <a class="btn" href="{{ url_for('pages.project_list') }}">← กลับ</a>
+      <a class="btn" href="{{ url_for('pages.project_list') }}">กลับ</a>
       <a class="btn" href="{{ url_for('pages.project_edit', pid=project.id) }}">แก้ไข</a>
       <a class="btn" href="{{ url_for('pages.project_export_xlsx', pid=project.id) }}">Export Excel</a>
     </div>
   </div>
 
-  {# ==========================
-     BOQ / เอกสารแนบ
-     ========================== #}
   {% set has_boq_excel = (project.boq_excel_path or '')|trim %}
   {% set has_boq_pdf = (project.boq_pdf_path or '')|trim %}
 
@@ -207,9 +193,9 @@
       <div>
         <div class="section-title" style="font-size:16px;">BOQ / เอกสารแนบ</div>
         <div class="boqMeta">
-          ไฟล์ BOQ จากใบเสนอราคา (QT) — ดาวน์โหลดได้จากที่นี่
+          ไฟล์ BOQ จากใบเสนอราคา (QT)
           {% if not has_boq_excel and not has_boq_pdf %}
-            <br><span class="mutedSmall">* ตอนนี้โครงการยังไม่มีไฟล์ BOQ แนบไว้</span>
+            <br><span class="mutedSmall">ตอนนี้โครงการยังไม่มีไฟล์ BOQ แนบไว้</span>
           {% endif %}
         </div>
       </div>
@@ -231,39 +217,17 @@
 
   <div class="mt-12 stickyTotals">
     <div class="grid">
-
-      {# ==========================
-         ต้นทุนโครงการจาก QT (ถ้ามี)
-         ========================== #}
       {% if qt_doc is defined and qt_doc %}
-        {% set nsqt = namespace(subtotal=0) %}
-        {% for it in (qt_doc.items or []) %}
-          {% set qty = (it.qty or 0) %}
-          {% set price = (it.unit_price or 0) %}
-          {% set line_disc = (it.discount_amount or 0) %}
-          {% set line_total = (qty * price) - line_disc %}
-          {% set nsqt.subtotal = nsqt.subtotal + line_total %}
-        {% endfor %}
-
-        {% set qt_subtotal = nsqt.subtotal %}
-        {% set qt_discount_total = (qt_doc.discount_amount or 0) %}
-        {% set qt_net_before_tax = qt_subtotal - qt_discount_total %}
-        {% set qt_vat_rate = (qt_doc.vat_rate or 0) %}
-        {% set qt_wht_rate = (qt_doc.wht_rate or 0) %}
-        {% set qt_wht_amount = (qt_net_before_tax * qt_wht_rate) / 100 %}
-        {% set qt_net_after_wht = qt_net_before_tax - qt_wht_amount %}
-        {% set qt_vat_amount = (qt_net_after_wht * qt_vat_rate) / 100 %}
-        {% set qt_grand_total = qt_net_after_wht + qt_vat_amount %}
-
+        {% set qt_grand_total = (qt_doc.grand_total or 0) %}
         <div class="kpi kpi-wide">
-          <div class="k">ชื่อต้นทุนโครงการ</div>
+          <div class="k">ยอดอ้างอิงจากใบเสนอราคา</div>
           <div class="v" style="font-size:14px; font-weight:800; margin-top:2px;">
             {{ qt_doc.doc_no }}
             {% if qt_doc.customer_name or (qt_doc.customer and qt_doc.customer.name) %}
               • {{ qt_doc.customer_name or qt_doc.customer.name }}
             {% endif %}
           </div>
-          <div class="k" style="margin-top:6px;">ตัวเลขต้นทุน (ยอดรวมใบเสนอราคา)</div>
+          <div class="k" style="margin-top:6px;">ยอดสุทธิเอกสาร</div>
           <div class="v mono">{{ "%.2f"|format(qt_grand_total or 0) }}</div>
         </div>
       {% endif %}
@@ -285,7 +249,7 @@
         <div class="v mono">{{ "%.2f"|format(adv_total or 0) }}</div>
       </div>
       <div class="kpi kpi-wide">
-        <div class="k">รวมทั้งหมด</div>
+        <div class="k">รวมต้นทุนทั้งหมด</div>
         <div class="v mono">{{ "%.2f"|format(grand_total_ or 0) }}</div>
       </div>
     </div>
@@ -299,20 +263,18 @@
   {% endif %}
 </div>
 
-<!-- Voucher Print Bar -->
 <form id="voucherForm" class="voucherBar" method="POST" action="{{ url_for('pages.vouchers_print', pid=project.id) }}" target="_blank">
   <div class="voucherToolbar">
     <div class="voucherLeft">
       <label>เลือกประเภทเอกสารที่จะพิมพ์</label>
       <select class="input" name="doc_type" id="doc_type">
-        <option value="PV">ใบสำคัญจ่าย (PAYMENT VOUCHER)</option>
+        <option value="PV">ใบสำคัญจ่าย</option>
         <option value="RR">ใบรับรองแทนใบเสร็จรับเงิน</option>
         <option value="PV_WHT" style="display:none;">ใบสำคัญจ่าย (หัก ณ ที่จ่าย)</option>
       </select>
 
       <div class="voucherHelp">
-        ติ๊กเลือกจากรายการด้านล่าง (วัสดุ/ผู้รับเหมา/ค่าใช้จ่ายอื่น/เงินเบิกล่วงหน้า) แล้วกดพิมพ์<br>
-        <b>หมายเหตุ:</b> ปุ่ม “ใบสำคัญจ่าย (หัก ณ ที่จ่าย)” จะพิมพ์เฉพาะ “ผู้รับเหมาช่วง” ที่เลือกเท่านั้น
+        ติ๊กเลือกรายการด้านล่างก่อนพิมพ์เอกสาร
       </div>
     </div>
 
@@ -324,35 +286,22 @@
     <div class="voucherActions">
       <button class="btn" type="button" onclick="VoucherUI.selectAll()">เลือกทั้งหมด</button>
       <button class="btn" type="button" onclick="VoucherUI.clearAll()">ล้างที่เลือก</button>
-      <button class="btn" type="button" onclick="return VoucherUI.submitWHT()">🧾 ใบสำคัญจ่าย (หัก ณ ที่จ่าย)</button>
-      <button class="btn btn-primary" type="submit" onclick="return VoucherUI.beforeSubmit()">🖨️ พิมพ์เอกสารที่เลือก</button>
+      <button class="btn" type="button" onclick="return VoucherUI.submitWHT()">ใบสำคัญจ่าย (หัก ณ ที่จ่าย)</button>
+      <button class="btn btn-primary" type="submit" onclick="return VoucherUI.beforeSubmit()">พิมพ์เอกสารที่เลือก</button>
     </div>
   </div>
 
   <div id="voucherHidden"></div>
 </form>
 
-<!-- Materials -->
 <div class="card mt-12">
   <div class="section-head">
     <div>
       <div class="section-title">รายการวัสดุ</div>
-      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
-
-      {% if project.materials_tax_invoice_no or project.materials_tax_invoice_date %}
-      <div class="infoRow">
-        {% if project.materials_tax_invoice_no %}
-          <span class="pill">อ้างอิงใบกำกับภาษี: <b class="mono">{{ project.materials_tax_invoice_no }}</b></span>
-        {% endif %}
-        {% if project.materials_tax_invoice_date %}
-          <span class="pill">วันที่: <b class="mono">{{ project.materials_tax_invoice_date.strftime('%Y-%m-%d') }}</b></span>
-        {% endif %}
-      </div>
-      {% endif %}
+      <div class="muted">ติ๊กเพื่อออกเอกสาร</div>
     </div>
   </div>
 
-  <!-- Desktop table -->
   <div class="only-desktop">
     <div class="table-wrap">
       <table class="table">
@@ -362,6 +311,8 @@
             <th>ยี่ห้อ</th>
             <th>รหัส</th>
             <th>ชื่อ</th>
+            <th>เลขใบกำกับภาษี</th>
+            <th>วันที่ใบกำกับ</th>
             <th class="right">ราคา/หน่วย</th>
             <th class="right">จำนวน</th>
             <th class="right">รวม</th>
@@ -373,11 +324,12 @@
           <tr>
             <td class="center">
               <input class="vchk" type="checkbox" data-id="M:{{ m.id }}">
-              <span class="mutedSmall">เลือก</span>
             </td>
             <td>{{ m.brand or "" }}</td>
             <td class="mono">{{ m.item_code or "" }}</td>
             <td>{{ m.item_name or "" }}</td>
+            <td class="mono">{{ m.tax_invoice_no or "" }}</td>
+            <td class="mono">{{ m.tax_invoice_date.strftime('%Y-%m-%d') if m.tax_invoice_date else "" }}</td>
             <td class="right mono">{{ "%.2f"|format(m.unit_price or 0) }}</td>
             <td class="right mono">{{ "%.2f"|format(m.qty or 0) }}</td>
             <td class="right mono">{{ "%.2f"|format(amount) }}</td>
@@ -388,7 +340,6 @@
     </div>
   </div>
 
-  <!-- Mobile cards -->
   <div class="only-mobile">
     {% for m in (project.materials or []) %}
     {% set amount = (m.unit_price or 0) * (m.qty or 0) %}
@@ -398,11 +349,9 @@
           <div><b>{{ m.item_name or "" }}</b></div>
           <div class="mutedSmall">ยี่ห้อ: {{ m.brand or "" }}</div>
           <div class="mutedSmall mono">รหัส: {{ m.item_code or "" }}</div>
+          {% if m.tax_invoice_no %}<div class="mutedSmall mono">เลขใบกำกับ: {{ m.tax_invoice_no }}</div>{% endif %}
         </div>
-        <div>
-          <input class="vchk" type="checkbox" data-id="M:{{ m.id }}">
-          <span class="mutedSmall">เลือก</span>
-        </div>
+        <div><input class="vchk" type="checkbox" data-id="M:{{ m.id }}"></div>
       </div>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
         <div class="mutedSmall">ราคา/หน่วย<br><b class="mono">{{ "%.2f"|format(m.unit_price or 0) }}</b></div>
@@ -414,198 +363,90 @@
   </div>
 </div>
 
-<!-- Subcontractors -->
 <div class="card mt-12">
-  <div class="section-head">
-    <div>
-      <div class="section-title">ผู้รับเหมาช่วง</div>
-      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
-    </div>
-  </div>
-
-  <div class="only-desktop">
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th class="col-check">เลือก</th>
-            <th>ชื่อ</th>
-            <th>วันที่</th>
-            <th class="right">ว่าจ้าง</th>
-            <th class="right">% หัก ณ ที่จ่าย</th>
-            <th class="right">หัก (บาท)</th>
-            <th class="right">จ่ายจริง</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in (project.subcontractors or []) %}
-          {% set net = (s.contract_amount or 0) - (s.withholding_amount or 0) %}
-          <tr>
-            <td class="center">
-              <input class="vchk" type="checkbox" data-id="S:{{ s.id }}">
-              <span class="mutedSmall">เลือก</span>
-            </td>
-            <td><b>{{ s.vendor_name or "ผู้รับเหมา" }}</b></td>
-            <td class="mono">{{ s.pay_date.strftime('%Y-%m-%d') if s.pay_date else "" }}</td>
-            <td class="right mono">{{ "%.2f"|format(s.contract_amount or 0) }}</td>
-            <td class="right mono">{{ "%.2f"|format(s.withholding_rate or 0) }}</td>
-            <td class="right mono">{{ "%.2f"|format(s.withholding_amount or 0) }}</td>
-            <td class="right mono">{{ "%.2f"|format(net) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="only-mobile">
-    {% for s in (project.subcontractors or []) %}
-    {% set net = (s.contract_amount or 0) - (s.withholding_amount or 0) %}
-    <div class="miniCard" style="padding:12px; margin-top:10px;">
-      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
-        <div>
-          <div><b>{{ s.vendor_name or "ผู้รับเหมา" }}</b></div>
-          {% if s.pay_date %}
-            <div class="mutedSmall">วันที่: <b class="mono">{{ s.pay_date.strftime('%Y-%m-%d') }}</b></div>
-          {% endif %}
-        </div>
-        <div>
-          <input class="vchk" type="checkbox" data-id="S:{{ s.id }}">
-          <span class="mutedSmall">เลือก</span>
-        </div>
-      </div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-        <div class="mutedSmall">ว่าจ้าง<br><b class="mono">{{ "%.2f"|format(s.contract_amount or 0) }}</b></div>
-        <div class="mutedSmall">% หัก ณ ที่จ่าย<br><b class="mono">{{ "%.2f"|format(s.withholding_rate or 0) }}</b></div>
-        <div class="mutedSmall">หัก (บาท)<br><b class="mono">{{ "%.2f"|format(s.withholding_amount or 0) }}</b></div>
-        <div class="mutedSmall">จ่ายจริง<br><b class="mono">{{ "%.2f"|format(net) }}</b></div>
-      </div>
-    </div>
-    {% endfor %}
+  <div class="section-title">ผู้รับเหมาช่วง</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="col-check">เลือก</th>
+          <th>ชื่อ</th>
+          <th>วันที่</th>
+          <th class="right">ว่าจ้าง</th>
+          <th class="right">% หัก ณ ที่จ่าย</th>
+          <th class="right">หัก (บาท)</th>
+          <th class="right">จ่ายจริง</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in (project.subcontractors or []) %}
+        {% set net = (s.contract_amount or 0) - (s.withholding_amount or 0) %}
+        <tr>
+          <td class="center"><input class="vchk" type="checkbox" data-id="S:{{ s.id }}"></td>
+          <td><b>{{ s.vendor_name or "ผู้รับเหมา" }}</b></td>
+          <td class="mono">{{ s.pay_date.strftime('%Y-%m-%d') if s.pay_date else "" }}</td>
+          <td class="right mono">{{ "%.2f"|format(s.contract_amount or 0) }}</td>
+          <td class="right mono">{{ "%.2f"|format(s.withholding_rate or 0) }}</td>
+          <td class="right mono">{{ "%.2f"|format(s.withholding_amount or 0) }}</td>
+          <td class="right mono">{{ "%.2f"|format(net) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
-<!-- Expenses -->
 <div class="card mt-12">
-  <div class="section-head">
-    <div>
-      <div class="section-title">ค่าใช้จ่ายอื่น</div>
-      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
-    </div>
-  </div>
-
-  <div class="only-desktop">
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th class="col-check">เลือก</th>
-            <th>หมวด</th>
-            <th>ชื่อ</th>
-            <th>วันที่</th>
-            <th class="right">จำนวนเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for e in (project.expenses or []) %}
-          <tr>
-            <td class="center">
-              <input class="vchk" type="checkbox" data-id="E:{{ e.id }}">
-              <span class="mutedSmall">เลือก</span>
-            </td>
-            <td>{{ e.category or "อื่นๆ" }}</td>
-            <td>{{ e.title or "" }}</td>
-            <td class="mono">{{ e.expense_date.strftime('%Y-%m-%d') if e.expense_date else "" }}</td>
-            <td class="right mono">{{ "%.2f"|format(e.amount or 0) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="only-mobile">
-    {% for e in (project.expenses or []) %}
-    <div class="miniCard" style="padding:12px; margin-top:10px;">
-      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
-        <div>
-          <div><b>{{ e.title or "" }}</b></div>
-          <div class="mutedSmall">หมวด: {{ e.category or "อื่นๆ" }}</div>
-          {% if e.expense_date %}
-            <div class="mutedSmall">วันที่: <b class="mono">{{ e.expense_date.strftime('%Y-%m-%d') }}</b></div>
-          {% endif %}
-        </div>
-        <div>
-          <input class="vchk" type="checkbox" data-id="E:{{ e.id }}">
-          <span class="mutedSmall">เลือก</span>
-        </div>
-      </div>
-      <div class="mutedSmall" style="margin-top:10px;">
-        จำนวนเงิน<br><b class="mono">{{ "%.2f"|format(e.amount or 0) }}</b>
-      </div>
-    </div>
-    {% endfor %}
+  <div class="section-title">ค่าใช้จ่ายอื่น</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="col-check">เลือก</th>
+          <th>หมวด</th>
+          <th>ชื่อ</th>
+          <th>วันที่</th>
+          <th class="right">จำนวนเงิน</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in (project.expenses or []) %}
+        <tr>
+          <td class="center"><input class="vchk" type="checkbox" data-id="E:{{ e.id }}"></td>
+          <td>{{ e.category or "อื่นๆ" }}</td>
+          <td>{{ e.title or "" }}</td>
+          <td class="mono">{{ e.expense_date.strftime('%Y-%m-%d') if e.expense_date else "" }}</td>
+          <td class="right mono">{{ "%.2f"|format(e.amount or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
-<!-- Advances -->
 <div class="card mt-12">
-  <div class="section-head">
-    <div>
-      <div class="section-title">เงินเบิกล่วงหน้า</div>
-      <div class="muted">ติ๊กเพื่อออกใบสำคัญจ่าย/ใบรับรองแทนใบเสร็จ</div>
-    </div>
-  </div>
-
-  <div class="only-desktop">
-    <div class="table-wrap">
-      <table class="table">
-        <thead>
-          <tr>
-            <th class="col-check">เลือก</th>
-            <th>รายการ</th>
-            <th>วันที่</th>
-            <th class="right">จำนวนเงิน</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for a in (project.advances or []) %}
-          <tr>
-            <td class="center">
-              <input class="vchk" type="checkbox" data-id="A:{{ a.id }}">
-              <span class="mutedSmall">เลือก</span>
-            </td>
-            <td>{{ a.title or "" }}</td>
-            <td class="mono">{{ a.advance_date.strftime('%Y-%m-%d') if a.advance_date else "" }}</td>
-            <td class="right mono">{{ "%.2f"|format(a.amount or 0) }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="only-mobile">
-    {% for a in (project.advances or []) %}
-    <div class="miniCard" style="padding:12px; margin-top:10px;">
-      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
-        <div>
-          <div><b>{{ a.title or "" }}</b></div>
-          {% if a.advance_date %}
-            <div class="mutedSmall">วันที่: <b class="mono">{{ a.advance_date.strftime('%Y-%m-%d') }}</b></div>
-          {% endif %}
-        </div>
-        <div>
-          <input class="vchk" type="checkbox" data-id="A:{{ a.id }}">
-          <span class="mutedSmall">เลือก</span>
-        </div>
-      </div>
-      <div class="mutedSmall" style="margin-top:10px;">
-        จำนวนเงิน<br><b class="mono">{{ "%.2f"|format(a.amount or 0) }}</b>
-      </div>
-    </div>
-    {% endfor %}
+  <div class="section-title">เงินเบิกล่วงหน้า</div>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="col-check">เลือก</th>
+          <th>รายการ</th>
+          <th>วันที่</th>
+          <th class="right">จำนวนเงิน</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in (project.advances or []) %}
+        <tr>
+          <td class="center"><input class="vchk" type="checkbox" data-id="A:{{ a.id }}"></td>
+          <td>{{ a.title or "" }}</td>
+          <td class="mono">{{ a.advance_date.strftime('%Y-%m-%d') if a.advance_date else "" }}</td>
+          <td class="right mono">{{ "%.2f"|format(a.amount or 0) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -649,7 +490,7 @@
       this.syncHidden();
       const n = document.querySelectorAll('.vchk:checked').length;
       if(n <= 0){
-        alert('กรุณาติ๊กเลือกรายการอย่างน้อย 1 รายการก่อนพิมพ์');
+        alert('กรุณาเลือกรายการอย่างน้อย 1 รายการก่อนพิมพ์');
         return false;
       }
       return true;
@@ -662,7 +503,7 @@
         .filter(x => (x.getAttribute('data-id') || '').startsWith('S:'));
 
       if(subChecked.length <= 0){
-        alert('กรุณาติ๊กเลือกผู้รับเหมาช่วงอย่างน้อย 1 รายการก่อนออกใบสำคัญจ่าย (หัก ณ ที่จ่าย)');
+        alert('กรุณาเลือกผู้รับเหมาช่วงอย่างน้อย 1 รายการ');
         return false;
       }
 
